@@ -28,9 +28,15 @@ type NineClusterType string
 
 // Different types of nineclusters.
 const (
-	DataHouse   NineClusterType = "datahouse"
-	LakeHouse   NineClusterType = "lakehouse"
-	DataAndLake NineClusterType = "dataandlake"
+	DataHouse   NineClusterType = "DataHouse"
+	LakeHouse   NineClusterType = "lakeHouse"
+	DataAndLake NineClusterType = "DataAndLake"
+)
+
+const (
+	StateAvailable = "Available"
+	StateDeploying = "Deploying"
+	StateFailed    = "Failed"
 )
 
 // NineClusterSpec defines the desired state of NineCluster
@@ -43,8 +49,16 @@ type NineClusterSpec struct {
 
 // NineClusterStatus defines the observed state of NineCluster
 type NineClusterStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Represents the observations of a NineCluster's current state.
+	// NineCluster.status.conditions.type are: "Available", "Progressing", and "Degraded"
+	// NineCluster.status.conditions.status are one of True, False, Unknown.
+	// NineCluster.status.conditions.reason the value should be a CamelCase string and producers of specific
+	// condition types may define expected values and meanings for this field, and whether the values
+	// are considered a guaranteed API.
+	// NineCluster.status.conditions.Message is a human readable message indicating details about the transition.
+	// For further information see: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
+
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
 //+kubebuilder:object:root=true
