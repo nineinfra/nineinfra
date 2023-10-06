@@ -1,0 +1,12 @@
+apiVersion: nine.nineinfra.tech/v1alpha1
+kind: NineCluster
+metadata:
+  labels:
+    app.kubernetes.io/name: ninecluster
+    app.kubernetes.io/instance: ninecluster-sample
+    app.kubernetes.io/part-of: nineinfra
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: nineinfra
+  name: ninecluster-sample
+spec:
+  # TODO(user): Add fields here

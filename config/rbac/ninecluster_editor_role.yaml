@@ -1,0 +1,31 @@
+# permissions for end users to edit nineclusters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: ninecluster-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: nineinfra
+    app.kubernetes.io/part-of: nineinfra
+    app.kubernetes.io/managed-by: kustomize
+  name: ninecluster-editor-role
+rules:
+- apiGroups:
+  - nine.nineinfra.tech
+  resources:
+  - nineclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - nine.nineinfra.tech
+  resources:
+  - nineclusters/status
+  verbs:
+  - get

@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- nine_v1alpha1_ninecluster.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples
