@@ -23,13 +23,22 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// NineClusterType describes the type of the nineclusters
+type NineClusterType string
+
+// Different types of nineclusters.
+const (
+	DataHouse   NineClusterType = "datahouse"
+	LakeHouse   NineClusterType = "lakehouse"
+	DataAndLake NineClusterType = "dataandlake"
+)
+
 // NineClusterSpec defines the desired state of NineCluster
 type NineClusterSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of NineCluster. Edit ninecluster_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Type of the ninecluster. default value DataHouse.
+	Type NineClusterType `json:"type,omitempty"`
+	// Data Volume of the ninecluster. The unit of the data volume is Gi.
+	DataVolume int32 `json:"dataVolume"`
 }
 
 // NineClusterStatus defines the observed state of NineCluster

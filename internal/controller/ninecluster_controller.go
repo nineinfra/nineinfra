@@ -18,6 +18,10 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -47,11 +51,36 @@ type NineClusterReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.16.0/pkg/reconcile
 func (r *NineClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	var nine ninev1alpha1.NineCluster
+	err := r.Get(ctx, req.NamespacedName, &nine)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("Object not found, it could have been deleted")
+		} else {
+			logger.Info("Error occurred during fetching the object")
+		}
+		return ctrl.Result{}, err
+	}
+	requestArray := strings.Split(fmt.Sprint(req), "/")
+	requestName := requestArray[1]
+
+	if requestName == nine.Name {
+		logger.Info("Create or update nineclusters")
+		err = r.createOrUpdateClusters(ctx, &nine, logger)
+		if err != nil {
+			logger.Info("Error occurred during create or update nineclusters")
+			return ctrl.Result{}, err
+		}
+	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *NineClusterReconciler) createOrUpdateClusters(ctx context.Context, nine *ninev1alpha1.NineCluster, logger logr.Logger) error {
+
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
