@@ -41,7 +41,7 @@ const (
 
 // NineClusterSpec defines the desired state of NineCluster
 type NineClusterSpec struct {
-	// Type of the ninecluster. default value DataHouse.
+	// Type of the ninecluster. default value is DataHouse.
 	Type NineClusterType `json:"type,omitempty"`
 	// Data Volume of the ninecluster. The unit of the data volume is Gi.
 	DataVolume int32 `json:"dataVolume"`

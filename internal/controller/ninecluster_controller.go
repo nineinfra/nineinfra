@@ -20,10 +20,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"strconv"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -130,7 +133,24 @@ func (r *NineClusterReconciler) reconcileResource(ctx context.Context,
 	return nil
 }
 
+func tenantStorage(q resource.Quantity) corev1.ResourceList {
+	m := make(corev1.ResourceList, 1)
+	m[corev1.ResourceStorage] = q
+	return m
+}
+
+func CapacityPerVolume(capacity string, volumes int32) (*resource.Quantity, error) {
+	totalQuantity, err := resource.ParseQuantity(capacity)
+	if err != nil {
+		return nil, err
+	}
+	return resource.NewQuantity(totalQuantity.Value()/int64(volumes), totalQuantity.Format), nil
+}
+
 func (r *NineClusterReconciler) constructMinioTenant(nine *ninev1alpha1.NineCluster) (client.Object, error) {
+	sc := "directpv-min-io"
+	tmpBool := false
+	q, _ := CapacityPerVolume(strconv.Itoa(int(nine.Spec.DataVolume*1024*1024*1024)), 4*4)
 	mtDesired := &mtv2.Tenant{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      nine.Name + "-kyuubi",
@@ -140,7 +160,29 @@ func (r *NineClusterReconciler) constructMinioTenant(nine *ninev1alpha1.NineClus
 				"app":     "kyuubi",
 			},
 		},
-		Spec: mtv2.TenantSpec{},
+		Spec: mtv2.TenantSpec{
+			RequestAutoCert: &tmpBool,
+			Pools: []mtv2.Pool{
+				{
+					Servers:          4,
+					VolumesPerServer: 4,
+					VolumeClaimTemplate: &corev1.PersistentVolumeClaim{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "data",
+						},
+						Spec: corev1.PersistentVolumeClaimSpec{
+							AccessModes: []corev1.PersistentVolumeAccessMode{
+								corev1.ReadWriteOnce,
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: tenantStorage(*q),
+							},
+							StorageClassName: &sc,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	if err := ctrl.SetControllerReference(nine, mtDesired, r.Scheme); err != nil {
@@ -152,7 +194,11 @@ func (r *NineClusterReconciler) constructMinioTenant(nine *ninev1alpha1.NineClus
 }
 
 func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, nine *ninev1alpha1.NineCluster, logger logr.Logger) error {
-
+	minioTenant := &mtv2.Tenant{}
+	mtName := nine.Name + "-minio"
+	if err := r.reconcileResource(ctx, nine, r.constructMinioTenant, minioTenant, mtName, "Tenant"); err != nil {
+		return err
+	}
 	return nil
 }
 
