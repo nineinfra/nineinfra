@@ -17,20 +17,24 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+const ClusterNameSuffix = "-nine"
+const ClusterSign = "nine"
+
 // NineClusterType describes the type of the nineclusters
 type NineClusterType string
 
 // Different types of nineclusters.
 const (
-	DataHouse   NineClusterType = "DataHouse"
-	LakeHouse   NineClusterType = "lakeHouse"
-	DataAndLake NineClusterType = "DataAndLake"
+	DataHouse    NineClusterType = "DataHouse"
+	DataLake     NineClusterType = "DataLake"
+	HouseAndLake NineClusterType = "HouseAndLake"
 )
 
 const (
@@ -39,12 +43,64 @@ const (
 	StateFailed    = "Failed"
 )
 
+type ClusterType string
+
+// Different types of clusters.
+const (
+	KyuubiClusterType     ClusterType = "kyuubi"
+	ClickhouseClusterType ClusterType = "clickhouse"
+	SparkClusterType      ClusterType = "spark"
+	FlinkClusterType      ClusterType = "flink"
+	MetaStoreClusterType  ClusterType = "metastore"
+	DatabaseClusterType   ClusterType = "database"
+	MinioClusterType      ClusterType = "minio"
+	HdfsClusterType       ClusterType = "hdfs"
+	KafkaClusterType      ClusterType = "kafka"
+	ZookeeperClusterType  ClusterType = "zookeeper"
+	AirflowClusterType    ClusterType = "airflow"
+	NifiClusterType       ClusterType = "nifi"
+	SuperSetClusterType   ClusterType = "superset"
+)
+
+type MinioExposedInfo struct {
+	// Endpoint of the minio cluster.
+	Endpoint string `json:"endpoint"`
+	// Access key of the minio cluster.
+	AccessKey string `json:"accessKey"`
+	// Secret key of the minio cluster.
+	SecretKey string `json:"secretKey"`
+}
+
+type ResourceConfig struct {
+	// The replicas of the cluster workload.Default value is 1
+	// +optional
+	Replicas int32 `json:"replicas"`
+	// The resource requirements of the cluster workload.
+	// +optional
+	ResourceRequirements corev1.ResourceRequirements `json:"resourceRequirements"`
+}
+
+type ClusterInfo struct {
+	// Type of the cluster.
+	Type ClusterType `json:"type"`
+	// Version of the cluster.
+	Version string `json:"version"`
+	// Resource config of the cluster.
+	// +optional
+	Resource ResourceConfig `json:"resource,omitempty"`
+	// +optional
+
+}
+
 // NineClusterSpec defines the desired state of NineCluster
 type NineClusterSpec struct {
+	// Data Volume of the ninecluster. The unit of the data volume is Gi.
+	DataVolume int `json:"dataVolume"`
 	// Type of the ninecluster. default value is DataHouse.
 	Type NineClusterType `json:"type,omitempty"`
-	// Data Volume of the ninecluster. The unit of the data volume is Gi.
-	DataVolume int32 `json:"dataVolume"`
+	// Cluster set of the type of Nine
+	// +optional
+	ClusterSet []ClusterInfo `json:"clusterSet,omitempty"`
 }
 
 // NineClusterStatus defines the observed state of NineCluster

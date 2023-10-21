@@ -683,6 +683,8 @@ github.com/ncw/directio v1.0.5/go.mod h1:rX/pKEYkOXBGOggmcyJeJGloCkleSvphPx2eV3t
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nineinfra/kyuubi-operator v0.18.2 h1:SXz8Gy7ixo/gLwfhQqMA+BWHvx+zj1r1V1xz+mRiFwg=
 github.com/nineinfra/kyuubi-operator v0.18.2/go.mod h1:IExWMc8NBYFirsOhHsvaY6+xGId5VlXaL8fO4Es4qiw=
+github.com/nineinfra/metastore-operator v0.0.0-20231016104137-543443e5623b h1:3MfBBYZCgcp+TbVCQ0lxiZnL+Mx9zJh0z3QgCbbikJM=
+github.com/nineinfra/metastore-operator v0.0.0-20231016104137-543443e5623b/go.mod h1:l3Z4lqcPeZ3NC/+m4nNxYwgacZljJuiELWK5vjmd/nQ=
 github.com/nsqio/go-nsq v1.0.7/go.mod h1:XP5zaUs3pqf+Q71EqUJs3HYfBIqfK6G83WQMdNN+Ito=
 github.com/oklog/run v1.0.0/go.mod h1:dlhp/R75TPv97u0XWUtDeV/lRKWPKSdTuV0TZvrmrQA=
 github.com/oklog/ulid v1.3.1/go.mod h1:CirwcVhetQ6Lv90oh/F+FBtV6XMibvdAFo93nm5qn4U=
