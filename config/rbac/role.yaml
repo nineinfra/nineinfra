@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - nine.nineinfra.tech
+  resources:
+  - nineclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - nine.nineinfra.tech
+  resources:
+  - nineclusters/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - nine.nineinfra.tech
+  resources:
+  - nineclusters/status
+  verbs:
+  - get
+  - patch
+  - update
