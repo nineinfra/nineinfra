@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	dpnv1beta1 "github.com/minio/directpv/pkg/apis/directpv.min.io/v1beta1"
 	mtv2 "github.com/minio/operator/pkg/apis/minio.min.io/v2"
 	kov1alpha1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
 	mov1alpha1 "github.com/nineinfra/metastore-operator/api/v1alpha1"
@@ -117,29 +118,26 @@ func (r *NineClusterReconciler) reconcileResource(ctx context.Context,
 	logger := log.FromContext(ctx)
 	err := r.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: cluster.Namespace}, existingResource)
 	if err != nil && errors.IsNotFound(err) {
-		resource, err := constructFunc(ctx, cluster, subCluster)
+		res, err := constructFunc(ctx, cluster, subCluster)
 		if err != nil {
 			logger.Error(err, fmt.Sprintf("Failed to define new %s resource for Nifi", resourceType))
-
 			// The following implementation will update the status
 			meta.SetStatusCondition(&cluster.Status.Conditions, metav1.Condition{Type: ninev1alpha1.StateFailed,
 				Status: metav1.ConditionFalse, Reason: "Reconciling",
 				Message: fmt.Sprintf("Failed to create %s for the custom resource (%s): (%s)", resourceType, cluster.Name, err)})
-
 			if err := r.Status().Update(ctx, cluster); err != nil {
 				logger.Error(err, "Failed to update ninecluster status")
 				return err
 			}
-
 			return err
 		}
 
 		logger.Info(fmt.Sprintf("Creating a new %s", resourceType),
-			fmt.Sprintf("%s.Namespace", resourceType), resource.GetNamespace(), fmt.Sprintf("%s.Name", resourceType), resource.GetName())
+			fmt.Sprintf("%s.Namespace", resourceType), res.GetNamespace(), fmt.Sprintf("%s.Name", resourceType), res.GetName())
 
-		if err = r.Create(ctx, resource); err != nil {
+		if err = r.Create(ctx, res); err != nil {
 			logger.Error(err, fmt.Sprintf("Failed to create new %s", resourceType),
-				fmt.Sprintf("%s.Namespace", resourceType), resource.GetNamespace(), fmt.Sprintf("%s.Name", resourceType), resource.GetName())
+				fmt.Sprintf("%s.Namespace", resourceType), res.GetNamespace(), fmt.Sprintf("%s.Name", resourceType), res.GetName())
 			return err
 		}
 
@@ -147,7 +145,6 @@ func (r *NineClusterReconciler) reconcileResource(ctx context.Context,
 			logger.Error(err, fmt.Sprintf("Failed to get newly created %s", resourceType))
 			return err
 		}
-
 	} else if err != nil {
 		logger.Error(err, fmt.Sprintf("Failed to get %s", resourceType))
 		return err
@@ -170,15 +167,23 @@ func CapacityPerVolume(capacity string, volumes int32) (*resource.Quantity, erro
 }
 
 func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) (client.Object, error) {
+	//Todo, this value should be loaded automatically
 	sc := "directpv-min-io"
 	tmpBool := false
+	dpn := dpnv1beta1.DirectPVNode{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: cluster.Namespace}, &dpn); err != nil {
+		return &dpn, err
+	}
+	fmt.Println("constructMinioTenant:", dpn)
 	q, _ := CapacityPerVolume(strconv.Itoa(GiB2Bytes(cluster.Spec.DataVolume)), 4*4)
 	mtDesired := &mtv2.Tenant{
 		ObjectMeta: r.objectMeta(cluster),
 		Spec: mtv2.TenantSpec{
 			RequestAutoCert: &tmpBool,
+			Image:           "minio/minio:" + minio.Version,
 			Pools: []mtv2.Pool{
 				{
+					//Todo,this value should be loaded automatically
 					Servers:          4,
 					VolumesPerServer: 4,
 					VolumeClaimTemplate: &corev1.PersistentVolumeClaim{
@@ -211,6 +216,7 @@ func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, cluste
 	minioTenant := &mtv2.Tenant{}
 	mtName := r.resourceName(cluster)
 	if err := r.reconcileResource(ctx, cluster, minio, r.constructMinioTenant, minioTenant, mtName, "Tenant"); err != nil {
+		logger.Error(err, "Failed to reconcileResource in reconcileMinioTenant")
 		return err
 	}
 	return nil
@@ -308,6 +314,7 @@ func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, c
 func (r *NineClusterReconciler) reconcileMetastoreCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, metastore ninev1alpha1.ClusterInfo, logger logr.Logger) error {
 	metastoreCluster := &mov1alpha1.MetastoreCluster{}
 	if err := r.reconcileResource(ctx, cluster, metastore, r.constructMetastoreCluster, metastoreCluster, r.resourceName(cluster), "MetastoreCluster"); err != nil {
+		logger.Error(err, "Failed to reconcileResource in reconcileMetastoreCluster")
 		return err
 	}
 	return nil
@@ -396,6 +403,7 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 func (r *NineClusterReconciler) reconcileKyuubiCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo, logger logr.Logger) error {
 	kyuubiCluster := &kov1alpha1.KyuubiCluster{}
 	if err := r.reconcileResource(ctx, cluster, kyuubi, r.constructKyuubiCluster, kyuubiCluster, r.resourceName(cluster), "KyuubiCluster"); err != nil {
+		logger.Error(err, "Failed to reconcileResource in reconcileKyuubiCluster")
 		return err
 	}
 	return nil
