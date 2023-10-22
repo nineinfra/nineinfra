@@ -35,8 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	dpnv1beta1 "github.com/minio/directpv/pkg/apis/directpv.min.io/v1beta1"
-	mtv2 "github.com/minio/operator/pkg/apis/minio.min.io/v2"
 	kov1alpha1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
 	mov1alpha1 "github.com/nineinfra/metastore-operator/api/v1alpha1"
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
@@ -170,18 +168,18 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 	//Todo, this value should be loaded automatically
 	sc := "directpv-min-io"
 	tmpBool := false
-	dpn := dpnv1beta1.DirectPVNode{}
+	dpn := ninev1alpha1.DirectPVNode{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: cluster.Namespace}, &dpn); err != nil {
 		return &dpn, err
 	}
 	fmt.Println("constructMinioTenant:", dpn)
 	q, _ := CapacityPerVolume(strconv.Itoa(GiB2Bytes(cluster.Spec.DataVolume)), 4*4)
-	mtDesired := &mtv2.Tenant{
+	mtDesired := &ninev1alpha1.Tenant{
 		ObjectMeta: r.objectMeta(cluster),
-		Spec: mtv2.TenantSpec{
+		Spec: ninev1alpha1.TenantSpec{
 			RequestAutoCert: &tmpBool,
 			Image:           "minio/minio:" + minio.Version,
-			Pools: []mtv2.Pool{
+			Pools: []ninev1alpha1.Pool{
 				{
 					//Todo,this value should be loaded automatically
 					Servers:          4,
@@ -213,9 +211,9 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 }
 
 func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo, logger logr.Logger) error {
-	minioTenant := &mtv2.Tenant{}
+	minioTenant := &ninev1alpha1.Tenant{}
 	mtName := r.resourceName(cluster)
-	if err := r.reconcileResource(ctx, cluster, minio, r.constructMinioTenant, minioTenant, mtName, "Tenant"); err != nil {
+	if err := r.reconcileResource(ctx, cluster, minio, r.constructMinioTenant, &minioTenant, mtName, "Tenant"); err != nil {
 		logger.Error(err, "Failed to reconcileResource in reconcileMinioTenant")
 		return err
 	}
