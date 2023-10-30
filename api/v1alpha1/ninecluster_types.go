@@ -97,6 +97,7 @@ type NineClusterSpec struct {
 	// Data Volume of the ninecluster. The unit of the data volume is Gi.
 	DataVolume int `json:"dataVolume"`
 	// Type of the ninecluster. default value is DataHouse.
+	// +optional
 	Type NineClusterType `json:"type,omitempty"`
 	// Cluster set of the type of Nine
 	// +optional
@@ -125,7 +126,7 @@ type NineCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   NineClusterSpec   `json:"spec,omitempty"`
+	Spec   NineClusterSpec   `json:"spec"`
 	Status NineClusterStatus `json:"status,omitempty"`
 }
 

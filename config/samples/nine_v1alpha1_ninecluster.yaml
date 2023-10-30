@@ -9,4 +9,4 @@ metadata:
     app.kubernetes.io/created-by: nineinfra
   name: ninecluster-sample
 spec:
-  # TODO(user): Add fields here
+  dataVolume: 32

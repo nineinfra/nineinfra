@@ -26,7 +26,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/clientcmd"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -38,6 +42,8 @@ import (
 	kov1alpha1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
 	mov1alpha1 "github.com/nineinfra/metastore-operator/api/v1alpha1"
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
+
+	miniov2 "github.com/minio/operator/apis/minio.min.io/v2"
 )
 
 // NineClusterReconciler reconciles a NineCluster object
@@ -164,22 +170,17 @@ func CapacityPerVolume(capacity string, volumes int32) (*resource.Quantity, erro
 	return resource.NewQuantity(totalQuantity.Value()/int64(volumes), totalQuantity.Format), nil
 }
 
-func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) (client.Object, error) {
+func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) (*miniov2.Tenant, error) {
 	//Todo, this value should be loaded automatically
 	sc := "directpv-min-io"
 	tmpBool := false
-	dpn := ninev1alpha1.DirectPVNode{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: cluster.Namespace}, &dpn); err != nil {
-		return &dpn, err
-	}
-	fmt.Println("constructMinioTenant:", dpn)
 	q, _ := CapacityPerVolume(strconv.Itoa(GiB2Bytes(cluster.Spec.DataVolume)), 4*4)
-	mtDesired := &ninev1alpha1.Tenant{
+	mtDesired := &miniov2.Tenant{
 		ObjectMeta: r.objectMeta(cluster),
-		Spec: ninev1alpha1.TenantSpec{
+		Spec: miniov2.TenantSpec{
 			RequestAutoCert: &tmpBool,
 			Image:           "minio/minio:" + minio.Version,
-			Pools: []ninev1alpha1.Pool{
+			Pools: []miniov2.Pool{
 				{
 					//Todo,this value should be loaded automatically
 					Servers:          4,
@@ -211,14 +212,57 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 }
 
 func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo, logger logr.Logger) error {
-	minioTenant := &ninev1alpha1.Tenant{}
-	mtName := r.resourceName(cluster)
-	if err := r.reconcileResource(ctx, cluster, minio, r.constructMinioTenant, &minioTenant, mtName, "Tenant"); err != nil {
-		logger.Error(err, "Failed to reconcileResource in reconcileMinioTenant")
+	desiredMinioTenant, _ := r.constructMinioTenant(ctx, cluster, minio)
+
+	metav1.AddToGroupVersion(miniov2.Scheme, schema.GroupVersion{Version: "v1"})
+	utilruntime.Must(miniov2.AddToScheme(miniov2.Scheme))
+
+	kubeconfigPath := filepath.Join("/etc/kubernetes", "kubeconfig")
+
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	if err != nil {
+		logger.Error(err, "Start to create a new MinioTenant...")
+		return nil
+	}
+
+	//config, err := rest.InClusterConfig()
+	//if err != nil {
+	//	return err
+	//}
+
+	mc, err := miniov2.NewForConfig(config)
+	if err != nil {
 		return err
 	}
+
+	existingMinioTenant, err := mc.Tenants(cluster.Namespace).Get(context.TODO(), r.resourceName(cluster), metav1.GetOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		fmt.Println(err, "tenant get failed for:", r.resourceName(cluster))
+		return err
+	}
+	fmt.Println("createdMinioTenant:", existingMinioTenant, err)
+	if errors.IsNotFound(err) {
+		logger.Info("Start to create a new MinioTenant...")
+		createdMinioTenant, err := mc.Tenants(cluster.Namespace).Create(context.TODO(), desiredMinioTenant, metav1.CreateOptions{})
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("createdMinioTenant:", createdMinioTenant)
+	}
+
 	return nil
 }
+
+//func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo, logger logr.Logger) error {
+//	minioTenant := ninev1alpha1.Tenant{}
+//	mtName := r.resourceName(cluster)
+//	if err := r.reconcileResource(ctx, cluster, minio, r.constructMinioTenant, &minioTenant, mtName, "Tenant"); err != nil {
+//		logger.Error(err, "Failed to reconcileResource in reconcileMinioTenant")
+//		return err
+//	}
+//	return nil
+//}
 
 func (r *NineClusterReconciler) getMinioExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (ninev1alpha1.MinioExposedInfo, error) {
 	me := ninev1alpha1.MinioExposedInfo{}
@@ -310,13 +354,38 @@ func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, c
 }
 
 func (r *NineClusterReconciler) reconcileMetastoreCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, metastore ninev1alpha1.ClusterInfo, logger logr.Logger) error {
-	metastoreCluster := &mov1alpha1.MetastoreCluster{}
-	if err := r.reconcileResource(ctx, cluster, metastore, r.constructMetastoreCluster, metastoreCluster, r.resourceName(cluster), "MetastoreCluster"); err != nil {
-		logger.Error(err, "Failed to reconcileResource in reconcileMetastoreCluster")
+	desiredMetastore, err := r.constructMetastoreCluster(ctx, cluster, metastore)
+	if err != nil && errors.IsNotFound(err) {
+		logger.Info("Wait for other resource to constructMetastoreCluster...")
+		return nil
+	} else if err != nil {
+		logger.Error(err, "Failed to constructMetastoreCluster")
 		return err
+	}
+
+	existingMetastore := &mov1alpha1.MetastoreCluster{}
+	err = r.Get(ctx, client.ObjectKeyFromObject(desiredMetastore), existingMetastore)
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	if errors.IsNotFound(err) {
+		logger.Info("Start to create a new MetastoreCluster...")
+		if err := r.Create(ctx, desiredMetastore); err != nil {
+			return err
+		}
 	}
 	return nil
 }
+
+//func (r *NineClusterReconciler) reconcileMetastoreCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, metastore ninev1alpha1.ClusterInfo, logger logr.Logger) error {
+//	metastoreCluster := &mov1alpha1.MetastoreCluster{}
+//	if err := r.reconcileResource(ctx, cluster, metastore, r.constructMetastoreCluster, metastoreCluster, r.resourceName(cluster), "MetastoreCluster"); err != nil {
+//		logger.Error(err, "Failed to reconcileResource in reconcileMetastoreCluster")
+//		return err
+//	}
+//	return nil
+//}
 
 func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (client.Object, error) {
 	minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
@@ -398,14 +467,40 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 
 	return kyuubiDesired, nil
 }
+
 func (r *NineClusterReconciler) reconcileKyuubiCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo, logger logr.Logger) error {
-	kyuubiCluster := &kov1alpha1.KyuubiCluster{}
-	if err := r.reconcileResource(ctx, cluster, kyuubi, r.constructKyuubiCluster, kyuubiCluster, r.resourceName(cluster), "KyuubiCluster"); err != nil {
-		logger.Error(err, "Failed to reconcileResource in reconcileKyuubiCluster")
+	desiredKyuubi, err := r.constructKyuubiCluster(ctx, cluster, kyuubi)
+	if err != nil && errors.IsNotFound(err) {
+		logger.Info("Wait for other resource to constructKyuubiCluster...")
+		return nil
+	} else if err != nil {
+		logger.Error(err, "Failed to constructKyuubiCluster")
 		return err
+	}
+
+	existingKyuubi := &kov1alpha1.KyuubiCluster{}
+	err = r.Get(ctx, client.ObjectKeyFromObject(desiredKyuubi), existingKyuubi)
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	if errors.IsNotFound(err) {
+		logger.Info("Start to create a new KyuubiCluster...")
+		if err := r.Create(ctx, desiredKyuubi); err != nil {
+			return err
+		}
 	}
 	return nil
 }
+
+//func (r *NineClusterReconciler) reconcileKyuubiCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo, logger logr.Logger) error {
+//	kyuubiCluster := &kov1alpha1.KyuubiCluster{}
+//	if err := r.reconcileResource(ctx, cluster, kyuubi, r.constructKyuubiCluster, kyuubiCluster, r.resourceName(cluster), "KyuubiCluster"); err != nil {
+//		logger.Error(err, "Failed to reconcileResource in reconcileKyuubiCluster")
+//		return err
+//	}
+//	return nil
+//}
 
 func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster *ninev1alpha1.NineCluster, logger logr.Logger) {
 	if cluster.Spec.ClusterSet == nil {
@@ -415,33 +510,48 @@ func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster
 		switch v.Type {
 		case ninev1alpha1.KyuubiClusterType:
 			//create kyuubi cluster with minio tenant info
-			go func() {
-				err := r.reconcileKyuubiCluster(ctx, cluster, v, logger)
-				if err != nil {
-					logger.Error(err, "Failed to reconcileKyuubiCluster")
-				}
-			}()
+			//go func(clus ninev1alpha1.ClusterInfo) {
+			//	err := r.reconcileKyuubiCluster(ctx, cluster, clus, logger)
+			//	if err != nil {
+			//		logger.Error(err, "Failed to reconcileKyuubiCluster")
+			//	}
+			//}(v)
+			err := r.reconcileKyuubiCluster(ctx, cluster, v, logger)
+			if err != nil {
+				logger.Error(err, "Failed to reconcileKyuubiCluster")
+			}
 		case ninev1alpha1.MetaStoreClusterType:
 			//create metastore cluster with minio tenant info
-			go func() {
-				err := r.reconcileMetastoreCluster(ctx, cluster, v, logger)
-				if err != nil {
-					logger.Error(err, "Failed to reconcileMetastoreCluster")
-				}
-			}()
+			//go func(clus ninev1alpha1.ClusterInfo) {
+			//	err := r.reconcileMetastoreCluster(ctx, cluster, clus, logger)
+			//	if err != nil {
+			//		logger.Error(err, "Failed to reconcileMetastoreCluster")
+			//	}
+			//}(v)
+			err := r.reconcileMetastoreCluster(ctx, cluster, v, logger)
+			if err != nil {
+				logger.Error(err, "Failed to reconcileMetastoreCluster")
+			}
 		case ninev1alpha1.MinioClusterType:
 			//create minio tenant and export minio endpoint,access key and secret key
-			go func() {
-				err := r.reconcileMinioTenant(ctx, cluster, v, logger)
-				if err != nil {
-					logger.Error(err, "Failed to reconcileMinioTenant")
-				}
-			}()
+			//go func(clus ninev1alpha1.ClusterInfo) {
+			//	err := r.reconcileMinioTenant(ctx, cluster, clus, logger)
+			//	if err != nil {
+			//		logger.Error(err, "Failed to reconcileMinioTenant")
+			//	}
+			//}(v)
+			err := r.reconcileMinioTenant(ctx, cluster, v, logger)
+			if err != nil {
+				logger.Error(err, "Failed to reconcileMinioTenant")
+			}
 		}
 	}
 }
 
 func (r *NineClusterReconciler) reconcileClusters(ctx context.Context, cluster *ninev1alpha1.NineCluster, logger logr.Logger) error {
+	if cluster.Spec.Type == "" {
+		cluster.Spec.Type = ninev1alpha1.DataHouse
+	}
 	switch cluster.Spec.Type {
 	case ninev1alpha1.DataHouse:
 		r.renconcileDataHouse(ctx, cluster, logger)
