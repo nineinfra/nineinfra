@@ -104,6 +104,10 @@ func (r *NineClusterReconciler) resourceName(cluster *ninev1alpha1.NineCluster) 
 	return cluster.Name + ninev1alpha1.ClusterNameSuffix
 }
 
+func (r *NineClusterReconciler) minioNewUserName(cluster *ninev1alpha1.NineCluster) string {
+	return cluster.Name + ninev1alpha1.ClusterNameSuffix + "-user"
+}
+
 func (r *NineClusterReconciler) objectMeta(cluster *ninev1alpha1.NineCluster) metav1.ObjectMeta {
 	return metav1.ObjectMeta{
 		Name:      r.resourceName(cluster),
@@ -170,6 +174,42 @@ func CapacityPerVolume(capacity string, volumes int32) (*resource.Quantity, erro
 	return resource.NewQuantity(totalQuantity.Value()/int64(volumes), totalQuantity.Format), nil
 }
 
+func (r *NineClusterReconciler) reconcileMinioNewUserSecret(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) error {
+	accessKey, secretKey, err := miniov2.GenerateCredentials()
+	secretData := map[string][]byte{
+		"CONSOLE_ACCESS_KEY": []byte(accessKey),
+		"CONSOLE_SECRET_KEY": []byte(secretKey),
+	}
+	desiredSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.minioNewUserName(cluster),
+			Namespace: cluster.Namespace,
+			Labels:    r.constructLabels(cluster),
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: secretData,
+	}
+
+	if err := ctrl.SetControllerReference(cluster, desiredSecret, r.Scheme); err != nil {
+		return err
+	}
+
+	existingSecret := &corev1.Secret{}
+
+	err = r.Get(ctx, client.ObjectKeyFromObject(desiredSecret), existingSecret)
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	if errors.IsNotFound(err) {
+		if err := r.Create(ctx, desiredSecret); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *NineClusterReconciler) reconcileMinioTenantConfigSecret(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) error {
 	strData := fmt.Sprintf("%s%s%s%s%s%s", "export MINIO_ACCESS_KEY=", "TIMJKQV5ZTSITBPK", "\n", "export MINIO_SECRET_KEY=", "5QGECCS3GGE05P2W5RCKVTKOBQ3G4QOX", "\n")
 	secretData := map[string][]byte{
@@ -211,6 +251,10 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 		return nil, err
 	}
 
+	if err := r.reconcileMinioNewUserSecret(ctx, cluster, minio); err != nil {
+		return nil, err
+	}
+
 	mtDesired := &miniov2.Tenant{
 		ObjectMeta: r.objectMeta(cluster),
 		Spec: miniov2.TenantSpec{
@@ -238,6 +282,11 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 							StorageClassName: &sc,
 						},
 					},
+				},
+			},
+			Users: []*corev1.LocalObjectReference{
+				{
+					Name: r.minioNewUserName(cluster),
 				},
 			},
 		},
@@ -310,7 +359,7 @@ func (r *NineClusterReconciler) getMinioExposedInfo(ctx context.Context, cluster
 		return me, err
 	}
 	minioSecret := corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{Name: cluster.Namespace + "-user-0", Namespace: cluster.Namespace}, &minioSecret); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: r.minioNewUserName(cluster), Namespace: cluster.Namespace}, &minioSecret); err != nil {
 		return me, err
 	}
 	me.Endpoint = "http://" + minioSvc.Spec.ClusterIP

@@ -100,4 +100,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace github.com/minio/operator/apis/minio.min.io/v2 => ./vendor/github.com/minio/operator/apis/minio.min.io/v2
+replace github.com/minio/operator/apis/minio.min.io/v2 => ./pkg/minio/operator/apis/minio.min.io/v2
