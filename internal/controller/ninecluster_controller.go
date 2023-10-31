@@ -170,14 +170,53 @@ func CapacityPerVolume(capacity string, volumes int32) (*resource.Quantity, erro
 	return resource.NewQuantity(totalQuantity.Value()/int64(volumes), totalQuantity.Format), nil
 }
 
+func (r *NineClusterReconciler) reconcileMinioTenantConfigSecret(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) error {
+	strData := fmt.Sprintf("%s%s%s%s%s%s", "export MINIO_ACCESS_KEY=", "TIMJKQV5ZTSITBPK", "\n", "export MINIO_SECRET_KEY=", "5QGECCS3GGE05P2W5RCKVTKOBQ3G4QOX", "\n")
+	secretData := map[string][]byte{
+		"config.env": []byte(strData),
+	}
+	desiredSecret := &corev1.Secret{
+		ObjectMeta: r.objectMeta(cluster),
+		Type:       corev1.SecretTypeOpaque,
+		Data:       secretData,
+	}
+
+	if err := ctrl.SetControllerReference(cluster, desiredSecret, r.Scheme); err != nil {
+		return err
+	}
+
+	existingSecret := &corev1.Secret{}
+
+	err := r.Get(ctx, client.ObjectKeyFromObject(desiredSecret), existingSecret)
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	if errors.IsNotFound(err) {
+		if err := r.Create(ctx, desiredSecret); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) (*miniov2.Tenant, error) {
 	//Todo, this value should be loaded automatically
 	sc := "directpv-min-io"
 	tmpBool := false
 	q, _ := CapacityPerVolume(strconv.Itoa(GiB2Bytes(cluster.Spec.DataVolume)), 4*4)
+
+	if err := r.reconcileMinioTenantConfigSecret(ctx, cluster, minio); err != nil {
+		return nil, err
+	}
+
 	mtDesired := &miniov2.Tenant{
 		ObjectMeta: r.objectMeta(cluster),
 		Spec: miniov2.TenantSpec{
+			Configuration: &corev1.LocalObjectReference{
+				Name: r.resourceName(cluster),
+			},
 			RequestAutoCert: &tmpBool,
 			Image:           "minio/minio:" + minio.Version,
 			Pools: []miniov2.Pool{
