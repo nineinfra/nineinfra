@@ -5,7 +5,7 @@ go 1.21.1
 require (
 	github.com/go-logr/logr v1.2.4
 	github.com/minio/operator/apis/minio.min.io/v2 v2.0.0-00010101000000-000000000000
-	github.com/nineinfra/kyuubi-operator v0.18.2
+	github.com/nineinfra/kyuubi-operator v0.181.3
 	github.com/nineinfra/metastore-operator v0.313.2
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.10

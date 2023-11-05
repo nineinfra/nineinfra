@@ -41,6 +41,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	kov1alpha1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
+	koversioned "github.com/nineinfra/kyuubi-operator/client/clientset/versioned"
+	koscheme "github.com/nineinfra/kyuubi-operator/client/clientset/versioned/scheme"
 	mov1alpha1 "github.com/nineinfra/metastore-operator/api/v1alpha1"
 	moversioned "github.com/nineinfra/metastore-operator/client/clientset/versioned"
 	moscheme "github.com/nineinfra/metastore-operator/client/clientset/versioned/scheme"
@@ -483,7 +485,7 @@ func (r *NineClusterReconciler) reconcileMetastoreCluster(ctx context.Context, c
 	return nil
 }
 
-func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (client.Object, error) {
+func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (*kov1alpha1.KyuubiCluster, error) {
 	minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
 	if err != nil {
 		return nil, err
@@ -574,23 +576,29 @@ func (r *NineClusterReconciler) reconcileKyuubiCluster(ctx context.Context, clus
 		return err
 	}
 
-	scheme := runtime.NewScheme()
-	scheme.AddKnownTypes(kov1alpha1.GroupVersion, &kov1alpha1.KyuubiCluster{}, &kov1alpha1.KyuubiClusterList{})
-	metav1.AddToGroupVersion(scheme, kov1alpha1.GroupVersion)
-	utilruntime.Must(kov1alpha1.AddToScheme(scheme))
+	metav1.AddToGroupVersion(koscheme.Scheme, kov1alpha1.GroupVersion)
+	utilruntime.Must(kov1alpha1.AddToScheme(koscheme.Scheme))
 
-	existingKyuubi := &kov1alpha1.KyuubiCluster{}
-	err = r.Get(ctx, client.ObjectKeyFromObject(desiredKyuubi), existingKyuubi)
+	config, err := getK8sClientConfig()
+
+	kc, err := koversioned.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+
+	_, err = kc.KyuubiV1alpha1().KyuubiClusters(cluster.Namespace).Get(context.TODO(), r.resourceName(cluster), metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 
 	if errors.IsNotFound(err) {
 		logger.Info("Start to create a new KyuubiCluster...")
-		if err := r.Create(ctx, desiredKyuubi); err != nil {
+		_, err := kc.KyuubiV1alpha1().KyuubiClusters(cluster.Namespace).Create(context.TODO(), desiredKyuubi, metav1.CreateOptions{})
+		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
