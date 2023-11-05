@@ -43,6 +43,8 @@ import (
 
 	kov1alpha1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
 	mov1alpha1 "github.com/nineinfra/metastore-operator/api/v1alpha1"
+	moversioned "github.com/nineinfra/metastore-operator/client/clientset/versioned"
+	moscheme "github.com/nineinfra/metastore-operator/client/clientset/versioned/scheme"
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 
 	miniov2 "github.com/minio/operator/apis/minio.min.io/v2"
@@ -321,19 +323,6 @@ func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, cluste
 	metav1.AddToGroupVersion(miniov2.Scheme, schema.GroupVersion{Version: "v1"})
 	utilruntime.Must(miniov2.AddToScheme(miniov2.Scheme))
 
-	//kubeconfigPath := filepath.Join("/etc/kubernetes", "kubeconfig")
-	//
-	//config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	//if err != nil {
-	//	logger.Error(err, "Start to create a new MinioTenant...")
-	//	return nil
-	//}
-	//
-	////config, err := rest.InClusterConfig()
-	////if err != nil {
-	////	return err
-	////}
-
 	config, err := getK8sClientConfig()
 
 	mc, err := miniov2.NewForConfig(config)
@@ -346,11 +335,7 @@ func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, cluste
 		fmt.Println(err, "tenant get failed for:", r.resourceName(cluster))
 		return err
 	}
-	//existingTenant := &miniov2.Tenant{}
-	//err = r.Get(ctx, client.ObjectKeyFromObject(desiredMinioTenant), existingTenant)
-	//if err != nil && !errors.IsNotFound(err) {
-	//	return err
-	//}
+
 	if errors.IsNotFound(err) {
 		logger.Info("Start to create a new MinioTenant...")
 		_, err := mc.Tenants(cluster.Namespace).Create(context.TODO(), desiredMinioTenant, metav1.CreateOptions{})
@@ -422,7 +407,7 @@ func (r *NineClusterReconciler) getMetastoreExposedInfo(ctx context.Context, clu
 	return me, nil
 }
 
-func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, metastore ninev1alpha1.ClusterInfo) (client.Object, error) {
+func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, metastore ninev1alpha1.ClusterInfo) (*mov1alpha1.MetastoreCluster, error) {
 	minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
 	if err != nil {
 		return nil, err
@@ -482,69 +467,71 @@ func (r *NineClusterReconciler) reconcileMetastoreCluster(ctx context.Context, c
 		return err
 	}
 
-	//scheme := runtime.NewScheme()
-	//scheme.AddKnownTypes(mov1alpha1.GroupVersion, &mov1alpha1.MetastoreCluster{}, &mov1alpha1.MetastoreClusterList{})
-	//metav1.AddToGroupVersion(scheme, mov1alpha1.GroupVersion)
-	//utilruntime.Must(mov1alpha1.AddToScheme(scheme))
-
-	metav1.AddToGroupVersion(mov1alpha1.Scheme, mov1alpha1.GroupVersion)
-	utilruntime.Must(mov1alpha1.AddToScheme(mov1alpha1.Scheme))
-
-	//existingMetastore := &mov1alpha1.MetastoreCluster{}
-	//err = r.Get(ctx, client.ObjectKeyFromObject(desiredMetastore), existingMetastore)
-	//if err != nil && !errors.IsNotFound(err) {
-	//	return err
-	//}
+	metav1.AddToGroupVersion(moscheme.Scheme, mov1alpha1.GroupVersion)
+	utilruntime.Must(mov1alpha1.AddToScheme(moscheme.Scheme))
 
 	config, err := getK8sClientConfig()
-	config.GroupVersion = &mov1alpha1.GroupVersion
-	config.APIPath = "/apis"
-	config.NegotiatedSerializer = mov1alpha1.Codecs.WithoutConversion()
-	if config.UserAgent == "" {
-		config.UserAgent = rest.DefaultKubernetesUserAgent()
-	}
 
-	httpClient, err := rest.HTTPClientFor(config)
+	mc, err := moversioned.NewForConfig(config)
 	if err != nil {
 		return err
 	}
 
-	client, err := rest.RESTClientForConfigAndClient(config, httpClient)
-	if err != nil {
-		return err
-	}
-
-	existingMetastore := &mov1alpha1.MetastoreCluster{}
-	err = client.Get().
-		Namespace(cluster.Namespace).
-		Resource("metastoreclusters").
-		Name(r.resourceName(cluster)).
-		VersionedParams(&metav1.GetOptions{}, mov1alpha1.ParameterCodec).
-		Do(ctx).
-		Into(existingMetastore)
+	_, err = mc.MetastoreV1alpha1().MetastoreClusters(cluster.Namespace).Get(context.TODO(), r.resourceName(cluster), metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 
-	//if errors.IsNotFound(err) {
-	//	logger.Info("Start to create a new MetastoreCluster...")
-	//	if err := r.Create(ctx, desiredMetastore); err != nil {
-	//		return err
-	//	}
-	//}
 	if errors.IsNotFound(err) {
 		logger.Info("Start to create a new MetastoreCluster...")
-		err = client.Post().
-			Namespace(cluster.Namespace).
-			Resource("metastoreclusters").
-			VersionedParams(&metav1.CreateOptions{}, mov1alpha1.ParameterCodec).
-			Body(desiredMetastore).
-			Do(ctx).
-			Into(existingMetastore)
+		_, err := mc.MetastoreV1alpha1().MetastoreClusters(cluster.Namespace).Create(context.TODO(), desiredMetastore, metav1.CreateOptions{})
 		if err != nil {
 			return err
 		}
 	}
+
+	//config.GroupVersion = &mov1alpha1.GroupVersion
+	//config.APIPath = "/apis"
+	//config.NegotiatedSerializer = mov1alpha1.Codecs.WithoutConversion()
+	//if config.UserAgent == "" {
+	//	config.UserAgent = rest.DefaultKubernetesUserAgent()
+	//}
+	//
+	//httpClient, err := rest.HTTPClientFor(config)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//client, err := rest.RESTClientForConfigAndClient(config, httpClient)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//existingMetastore := &mov1alpha1.MetastoreCluster{}
+	//err = client.Get().
+	//	Namespace(cluster.Namespace).
+	//	Resource("metastoreclusters").
+	//	Name(r.resourceName(cluster)).
+	//	VersionedParams(&metav1.GetOptions{}, mov1alpha1.ParameterCodec).
+	//	Do(ctx).
+	//	Into(existingMetastore)
+	//if err != nil && !errors.IsNotFound(err) {
+	//	return err
+	//}
+	//
+	//if errors.IsNotFound(err) {
+	//	logger.Info("Start to create a new MetastoreCluster...")
+	//	err = client.Post().
+	//		Namespace(cluster.Namespace).
+	//		Resource("metastoreclusters").
+	//		VersionedParams(&metav1.CreateOptions{}, mov1alpha1.ParameterCodec).
+	//		Body(desiredMetastore).
+	//		Do(ctx).
+	//		Into(existingMetastore)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
 
 	return nil
 }
