@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -368,18 +367,9 @@ func (r *NineClusterReconciler) getMinioExposedInfo(ctx context.Context, cluster
 	}(minioSvc, minioSecret)
 
 	<-condition
-
 	me.Endpoint = "http://" + minioSvc.Spec.ClusterIP
-	accessKeyBytes, err := base64.StdEncoding.DecodeString(string(minioSecret.Data["CONSOLE_ACCESS_KEY"]))
-	if err != nil {
-		return me, err
-	}
-	secretKeyBytes, err := base64.StdEncoding.DecodeString(string(minioSecret.Data["CONSOLE_SECRET_KEY"]))
-	if err != nil {
-		return me, err
-	}
-	me.AccessKey = string(accessKeyBytes)
-	me.SecretKey = string(secretKeyBytes)
+	me.AccessKey = string(minioSecret.Data["CONSOLE_ACCESS_KEY"])
+	me.SecretKey = string(minioSecret.Data["CONSOLE_SECRET_KEY"])
 	return me, nil
 }
 
@@ -489,49 +479,6 @@ func (r *NineClusterReconciler) reconcileMetastoreCluster(ctx context.Context, c
 			return err
 		}
 	}
-
-	//config.GroupVersion = &mov1alpha1.GroupVersion
-	//config.APIPath = "/apis"
-	//config.NegotiatedSerializer = mov1alpha1.Codecs.WithoutConversion()
-	//if config.UserAgent == "" {
-	//	config.UserAgent = rest.DefaultKubernetesUserAgent()
-	//}
-	//
-	//httpClient, err := rest.HTTPClientFor(config)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//client, err := rest.RESTClientForConfigAndClient(config, httpClient)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//existingMetastore := &mov1alpha1.MetastoreCluster{}
-	//err = client.Get().
-	//	Namespace(cluster.Namespace).
-	//	Resource("metastoreclusters").
-	//	Name(r.resourceName(cluster)).
-	//	VersionedParams(&metav1.GetOptions{}, mov1alpha1.ParameterCodec).
-	//	Do(ctx).
-	//	Into(existingMetastore)
-	//if err != nil && !errors.IsNotFound(err) {
-	//	return err
-	//}
-	//
-	//if errors.IsNotFound(err) {
-	//	logger.Info("Start to create a new MetastoreCluster...")
-	//	err = client.Post().
-	//		Namespace(cluster.Namespace).
-	//		Resource("metastoreclusters").
-	//		VersionedParams(&metav1.CreateOptions{}, mov1alpha1.ParameterCodec).
-	//		Body(desiredMetastore).
-	//		Do(ctx).
-	//		Into(existingMetastore)
-	//	if err != nil {
-	//		return err
-	//	}
-	//}
 
 	return nil
 }
