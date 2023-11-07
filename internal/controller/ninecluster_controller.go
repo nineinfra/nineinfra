@@ -376,15 +376,28 @@ func (r *NineClusterReconciler) getMinioExposedInfo(ctx context.Context, cluster
 }
 
 func (r *NineClusterReconciler) getMetastoreExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (mov1alpha1.ExposedInfo, error) {
-	condition := make(chan struct{})
 	me := mov1alpha1.ExposedInfo{}
+	config, err := getK8sClientConfig()
+
+	mclient, err := moversioned.NewForConfig(config)
+	if err != nil {
+		return me, err
+	}
+	condition := make(chan struct{})
+
 	mc := &mov1alpha1.MetastoreCluster{}
 	go func(metastorecluster *mov1alpha1.MetastoreCluster) {
 		for {
-			if err := r.Get(ctx, types.NamespacedName{Name: cluster.Name + mov1alpha1.ClusterNameSuffix, Namespace: cluster.Namespace}, metastorecluster); err != nil && errors.IsNotFound(err) {
+			mctemp, err := mclient.MetastoreV1alpha1().MetastoreClusters(cluster.Namespace).Get(context.TODO(), r.resourceName(cluster), metav1.GetOptions{})
+			if err != nil && !errors.IsNotFound(err) {
 				time.Sleep(time.Second)
 				continue
 			}
+			if mctemp.Status.ExposedInfos == nil {
+				time.Sleep(time.Second)
+				continue
+			}
+			mctemp.DeepCopyInto(metastorecluster)
 			close(condition)
 			break
 		}
@@ -502,7 +515,7 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 				Replicas: 1,
 			},
 			KyuubiImage: kov1alpha1.ImageConfig{
-				Repository: "172.18.123.24/library/kyuubi",
+				Repository: "172.18.123.24:30003/library/kyuubi",
 				Tag:        "v1.8.1-minio",
 			},
 			KyuubiConf: map[string]string{
@@ -522,7 +535,7 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 					Spark: kov1alpha1.SparkCluster{
 						SparkMaster: "k8s",
 						SparkImage: kov1alpha1.ImageConfig{
-							Repository: "172.18.123.24/library/spark",
+							Repository: "172.18.123.24:30003/library/spark",
 							Tag:        "v3.2.4-minio",
 						},
 						SparkNamespace: cluster.Namespace,
@@ -616,11 +629,6 @@ func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster
 					logger.Error(err, "Failed to reconcileKyuubiCluster")
 				}
 			}(v)
-			//logger.Info("call reconcileKyuubiCluster")
-			//err := r.reconcileKyuubiCluster(ctx, cluster, v, logger)
-			//if err != nil {
-			//	logger.Error(err, "Failed to reconcileKyuubiCluster")
-			//}
 		case ninev1alpha1.MetaStoreClusterType:
 			//create metastore cluster with minio tenant info
 			go func(clus ninev1alpha1.ClusterInfo) {
@@ -629,11 +637,6 @@ func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster
 					logger.Error(err, "Failed to reconcileMetastoreCluster")
 				}
 			}(v)
-			//logger.Info("call reconcileMetastoreCluster")
-			//err := r.reconcileMetastoreCluster(ctx, cluster, v, logger)
-			//if err != nil {
-			//	logger.Error(err, "Failed to reconcileMetastoreCluster")
-			//}
 		case ninev1alpha1.MinioClusterType:
 			//create minio tenant and export minio endpoint,access key and secret key
 			go func(clus ninev1alpha1.ClusterInfo) {
@@ -642,10 +645,6 @@ func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster
 					logger.Error(err, "Failed to reconcileMinioTenant")
 				}
 			}(v)
-			//err := r.reconcileMinioTenant(ctx, cluster, v, logger)
-			//if err != nil {
-			//	logger.Error(err, "Failed to reconcileMinioTenant")
-			//}
 		}
 	}
 }
