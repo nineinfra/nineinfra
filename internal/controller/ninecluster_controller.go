@@ -50,6 +50,7 @@ import (
 	moscheme "github.com/nineinfra/metastore-operator/client/clientset/versioned/scheme"
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 
+	dpv1beta1 "github.com/minio/directpv/apis/directpv.min.io/v1beta1"
 	miniov2 "github.com/minio/operator/apis/minio.min.io/v2"
 )
 
@@ -255,6 +256,11 @@ func (r *NineClusterReconciler) reconcileMinioTenantConfigSecret(ctx context.Con
 		}
 	}
 
+	return nil
+}
+
+func (r *NineClusterReconciler) getDirectPVInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) error {
+	dpnode := &dpv1beta1.DirectPVNode{}
 	return nil
 }
 
