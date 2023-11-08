@@ -259,9 +259,30 @@ func (r *NineClusterReconciler) reconcileMinioTenantConfigSecret(ctx context.Con
 	return nil
 }
 
-func (r *NineClusterReconciler) getDirectPVInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) error {
-	dpnode := &dpv1beta1.DirectPVNode{}
-	return nil
+func (r *NineClusterReconciler) getDirectPVNodesCount(ctx context.Context) (int32, error) {
+
+	metav1.AddToGroupVersion(dpv1beta1.Scheme, dpv1beta1.SchemeGroupVersion)
+	utilruntime.Must(dpv1beta1.AddToScheme(dpv1beta1.Scheme))
+
+	config, err := getK8sClientConfig()
+
+	dc, err := dpv1beta1.NewForConfig(config)
+	if err != nil {
+		return 0, err
+	}
+
+	//_, err = mc.MetastoreV1alpha1().MetastoreClusters(cluster.Namespace).Get(context.TODO(), r.resourceName(cluster), metav1.GetOptions{})
+	dpnodelist, err := dc.DirectPVNodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return 0, err
+	}
+
+	dpnodes := int32(len(dpnodelist.Items))
+	if dpnodes == 0 {
+		return 0, errors.NewServiceUnavailable("directpv node not found")
+	}
+
+	return dpnodes, nil
 }
 
 func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) (*miniov2.Tenant, error) {
@@ -278,6 +299,11 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 		return nil, err
 	}
 
+	dpnodes, err := r.getDirectPVNodesCount(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	mtDesired := &miniov2.Tenant{
 		ObjectMeta: r.objectMeta(cluster),
 		Spec: miniov2.TenantSpec{
@@ -289,7 +315,7 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 			Pools: []miniov2.Pool{
 				{
 					//Todo,this value should be loaded automatically
-					Servers:          4,
+					Servers:          dpnodes,
 					VolumesPerServer: 4,
 					VolumeClaimTemplate: &corev1.PersistentVolumeClaim{
 						ObjectMeta: metav1.ObjectMeta{
@@ -450,11 +476,19 @@ func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, 
 	go func() {
 		for {
 			LogInfoInterval(ctx, 5, "Try to create minio bucket...")
-			err = mc.MakeBucket(ctx, bucket, minio.MakeBucketOptions{})
+			exists, err := mc.BucketExists(ctx, bucket)
 			if err != nil {
 				LogInfo(ctx, err.Error())
 				time.Sleep(time.Second)
 				continue
+			}
+			if !exists {
+				err = mc.MakeBucket(ctx, bucket, minio.MakeBucketOptions{})
+				if err != nil {
+					LogInfo(ctx, err.Error())
+					time.Sleep(time.Second)
+					continue
+				}
 			}
 			LogInfo(ctx, "Create minio bucket successfully!")
 			close(condition)
