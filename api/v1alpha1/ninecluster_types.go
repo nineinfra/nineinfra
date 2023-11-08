@@ -26,6 +26,9 @@ import (
 
 const ClusterNameSuffix = "-nine"
 const ClusterSign = "nine"
+const DataHouseDir = "/nineinfra/datahouse"
+const DefaultMinioBucket = "nineinfra"
+const DefaultMinioDataHouseFolder = "datahouse/"
 
 // NineClusterType describes the type of the nineclusters
 type NineClusterType string

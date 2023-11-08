@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-logr/logr"
+	"github.com/minio/minio-go/v7"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -40,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	miniocred "github.com/minio/minio-go/v7/pkg/credentials"
 	kov1alpha1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
 	koversioned "github.com/nineinfra/kyuubi-operator/client/clientset/versioned"
 	koscheme "github.com/nineinfra/kyuubi-operator/client/clientset/versioned/scheme"
@@ -180,6 +182,14 @@ func CapacityPerVolume(capacity string, volumes int32) (*resource.Quantity, erro
 	return resource.NewQuantity(totalQuantity.Value()/int64(volumes), totalQuantity.Format), nil
 }
 
+func minioFullEndpoint(endpoint string, sslEnable bool) string {
+	if sslEnable {
+		return "https://" + endpoint
+	} else {
+		return "http://" + endpoint
+	}
+}
+
 func (r *NineClusterReconciler) reconcileMinioNewUserSecret(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) error {
 	accessKey, secretKey, err := miniov2.GenerateCredentials()
 	secretData := map[string][]byte{
@@ -217,7 +227,7 @@ func (r *NineClusterReconciler) reconcileMinioNewUserSecret(ctx context.Context,
 }
 
 func (r *NineClusterReconciler) reconcileMinioTenantConfigSecret(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) error {
-	//Todo, should get accesskey and secretkey automatically
+	//Todo, should create root accesskey and secretkey randomly
 	strData := fmt.Sprintf("%s%s%s%s%s%s", "export MINIO_ACCESS_KEY=", "TIMJKQV5ZTSITBPK", "\n", "export MINIO_SECRET_KEY=", "5QGECCS3GGE05P2W5RCKVTKOBQ3G4QOX", "\n")
 	secretData := map[string][]byte{
 		"config.env": []byte(strData),
@@ -376,7 +386,7 @@ func (r *NineClusterReconciler) getMinioExposedInfo(ctx context.Context, cluster
 	<-condition
 	LogInfo(ctx, "Get minio exposed info successfully!")
 	me := ninev1alpha1.MinioExposedInfo{}
-	me.Endpoint = "http://" + minioSvc.Spec.ClusterIP
+	me.Endpoint = minioSvc.Spec.ClusterIP
 	me.AccessKey = string(minioSecret.Data["CONSOLE_ACCESS_KEY"])
 	me.SecretKey = string(minioSecret.Data["CONSOLE_SECRET_KEY"])
 	return me, nil
@@ -422,11 +432,49 @@ func (r *NineClusterReconciler) getMetastoreExposedInfo(ctx context.Context, clu
 	return me, nil
 }
 
+func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, minioInfo *ninev1alpha1.MinioExposedInfo, bucket string, folder string, sslEnable bool) error {
+	mc, err := minio.New(minioInfo.Endpoint, &minio.Options{
+		Creds:  miniocred.NewStaticV4(minioInfo.AccessKey, minioInfo.SecretKey, ""),
+		Secure: sslEnable,
+	})
+	if err != nil {
+		return err
+	}
+	condition := make(chan struct{})
+	go func() {
+		for {
+			LogInfoInterval(ctx, 5, "Try to create minio bucket...")
+			err = mc.MakeBucket(ctx, bucket, minio.MakeBucketOptions{})
+			if err != nil {
+				LogInfo(ctx, err.Error())
+				time.Sleep(time.Second)
+				continue
+			}
+			LogInfo(ctx, "Create minio bucket successfully!")
+			close(condition)
+			break
+		}
+	}()
+	<-condition
+	_, err = mc.PutObject(ctx, bucket, folder, nil, 0, minio.PutObjectOptions{})
+	if err != nil {
+		return err
+	}
+	LogInfo(ctx, "Create minio bucket and folder successfully!")
+	return nil
+}
+
 func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, metastore ninev1alpha1.ClusterInfo) (*mov1alpha1.MetastoreCluster, error) {
 	minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
 	if err != nil {
 		return nil, err
 	}
+
+	err = r.createMinioBucketAndFolder(ctx, &minioExposedInfo, ninev1alpha1.DefaultMinioBucket, ninev1alpha1.DefaultMinioDataHouseFolder, false)
+	if err != nil {
+		return nil, err
+	}
+
 	metastoreDesired := &mov1alpha1.MetastoreCluster{
 		ObjectMeta: r.objectMeta(cluster),
 		//Todo,here should be a template instead of hardcoding?
@@ -441,7 +489,7 @@ func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, c
 			},
 			//Todo,the bucket in minio should be created automatically
 			MetastoreConf: map[string]string{
-				"hive.metastore.warehouse.dir": "/usr/hive/warehouse",
+				"hive.metastore.warehouse.dir": ninev1alpha1.DataHouseDir,
 			},
 			ClusterRefs: []mov1alpha1.ClusterRef{
 				{
@@ -458,7 +506,7 @@ func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, c
 					Name: "minio",
 					Type: "minio",
 					Minio: mov1alpha1.MinioCluster{
-						Endpoint:        minioExposedInfo.Endpoint,
+						Endpoint:        minioFullEndpoint(minioExposedInfo.Endpoint, false),
 						AccessKey:       minioExposedInfo.AccessKey,
 						SecretKey:       minioExposedInfo.SecretKey,
 						SSLEnabled:      "false",
@@ -559,7 +607,7 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 							"spark.hadoop.fs.s3a.secret.key":             minioExposedInfo.SecretKey,
 							"spark.hadoop.fs.s3a.path.style.access":      "true",
 							"spark.hadoop.fs.s3a.connection.ssl.enabled": "false",
-							"spark.hadoop.fs.s3a.endpoint":               minioExposedInfo.Endpoint,
+							"spark.hadoop.fs.s3a.endpoint":               minioFullEndpoint(minioExposedInfo.Endpoint, false),
 						},
 					},
 				},
@@ -569,7 +617,7 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 					Metastore: kov1alpha1.MetastoreCluster{
 						HiveSite: map[string]string{
 							"hive.metastore.uris":          "thrift://" + metastoreExposedInfo.ServiceName + "." + cluster.Namespace + ".svc:" + strconv.Itoa(int(metastoreExposedInfo.ServicePort.Port)),
-							"hive.metastore.warehouse.dir": "s3a://usr/hive/warehouse",
+							"hive.metastore.warehouse.dir": "s3a:/" + ninev1alpha1.DataHouseDir,
 						},
 					},
 				},
