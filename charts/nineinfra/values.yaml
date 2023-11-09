@@ -2,7 +2,7 @@
 ---
 image:
   repository: 172.18.123.24:30003/library/nineinfra
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   tag: v0.3.3
 
 imagePullSecrets: []
@@ -48,3 +48,8 @@ affinity: {}
 env:
   - name: ENABLE_WEBHOOKS
     value: "false"
+
+operators:
+  - minio-operator
+  - kyuubi-operator
+  - metastore-operator

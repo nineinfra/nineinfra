@@ -349,18 +349,9 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 }
 
 func getK8sClientConfig() (*rest.Config, error) {
-	//kubeconfigPath := filepath.Join("/etc/kubernetes", "kubeconfig")
-	//
-	//config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	//if err != nil {
-	//	return nil, err
-	//}
-
+	//Todo,support run out of the k8s cluster
 	config, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, err
-	}
-	return config, nil
+	return config, err
 }
 
 func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo, logger logr.Logger) error {
@@ -392,6 +383,8 @@ func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, cluste
 			return err
 		}
 	}
+
+	logger.Info("Create a MinioTenant successfully")
 
 	return nil
 }
@@ -605,7 +598,7 @@ func (r *NineClusterReconciler) reconcileMetastoreCluster(ctx context.Context, c
 			return err
 		}
 	}
-
+	logger.Info("Create a MetastoreCluster successfully")
 	return nil
 }
 
@@ -726,7 +719,7 @@ func (r *NineClusterReconciler) reconcileKyuubiCluster(ctx context.Context, clus
 			return err
 		}
 	}
-
+	logger.Info("Create a KyuubiCluster successfully")
 	return nil
 }
 
@@ -734,6 +727,7 @@ func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster
 	if cluster.Spec.ClusterSet == nil {
 		cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseClusterset
 	}
+	//Todo,add check if the cluster running?
 	for _, v := range cluster.Spec.ClusterSet {
 		switch v.Type {
 		case ninev1alpha1.KyuubiClusterType:
@@ -772,9 +766,9 @@ func (r *NineClusterReconciler) reconcileClusters(ctx context.Context, cluster *
 	case ninev1alpha1.DataHouse:
 		r.renconcileDataHouse(ctx, cluster, logger)
 	case ninev1alpha1.DataLake:
-		//todo
+		//Todo
 	case ninev1alpha1.HouseAndLake:
-		//todo
+		//Todo
 	}
 	return nil
 }
