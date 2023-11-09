@@ -1,0 +1,9 @@
+apiVersion: v2
+appVersion: 0.3.3
+description: The Nineinfra Data Process Platform
+home: https://github.com/nineinfra/nineinfra
+maintainers:
+- name: nineinfra
+  url: https://github.com/nineinfra
+name: nineinfra
+version: v0.3.3

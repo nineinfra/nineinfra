@@ -30,8 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -265,13 +263,15 @@ func (r *NineClusterReconciler) getDirectPVNodesCount(ctx context.Context) (int3
 	utilruntime.Must(dpv1beta1.AddToScheme(dpv1beta1.Scheme))
 
 	config, err := getK8sClientConfig()
+	if err != nil {
+		return 0, err
+	}
 
 	dc, err := dpv1beta1.NewForConfig(config)
 	if err != nil {
 		return 0, err
 	}
 
-	//_, err = mc.MetastoreV1alpha1().MetastoreClusters(cluster.Namespace).Get(context.TODO(), r.resourceName(cluster), metav1.GetOptions{})
 	dpnodelist, err := dc.DirectPVNodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return 0, err
@@ -349,17 +349,17 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 }
 
 func getK8sClientConfig() (*rest.Config, error) {
-	kubeconfigPath := filepath.Join("/etc/kubernetes", "kubeconfig")
+	//kubeconfigPath := filepath.Join("/etc/kubernetes", "kubeconfig")
+	//
+	//config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	//if err != nil {
+	//	return nil, err
+	//}
 
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
 	}
-
-	//config, err := rest.InClusterConfig()
-	//if err != nil {
-	//	return nil,err
-	//}
 	return config, nil
 }
 
@@ -370,6 +370,9 @@ func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, cluste
 	utilruntime.Must(miniov2.AddToScheme(miniov2.Scheme))
 
 	config, err := getK8sClientConfig()
+	if err != nil {
+		return err
+	}
 
 	mc, err := miniov2.NewForConfig(config)
 	if err != nil {
@@ -427,6 +430,9 @@ func (r *NineClusterReconciler) getMinioExposedInfo(ctx context.Context, cluster
 func (r *NineClusterReconciler) getMetastoreExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (mov1alpha1.ExposedInfo, error) {
 	me := mov1alpha1.ExposedInfo{}
 	config, err := getK8sClientConfig()
+	if err != nil {
+		return me, err
+	}
 
 	mclient, err := moversioned.NewForConfig(config)
 	if err != nil {
@@ -578,6 +584,9 @@ func (r *NineClusterReconciler) reconcileMetastoreCluster(ctx context.Context, c
 	utilruntime.Must(mov1alpha1.AddToScheme(moscheme.Scheme))
 
 	config, err := getK8sClientConfig()
+	if err != nil {
+		return err
+	}
 
 	mc, err := moversioned.NewForConfig(config)
 	if err != nil {
@@ -696,6 +705,9 @@ func (r *NineClusterReconciler) reconcileKyuubiCluster(ctx context.Context, clus
 	utilruntime.Must(kov1alpha1.AddToScheme(koscheme.Scheme))
 
 	config, err := getK8sClientConfig()
+	if err != nil {
+		return err
+	}
 
 	kc, err := koversioned.NewForConfig(config)
 	if err != nil {
