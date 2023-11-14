@@ -97,6 +97,10 @@ spec:
                               type: object
                           type: object
                       type: object
+                    subType:
+                      description: SubType,some type of cluster such as database has
+                        subtype,Support mysql,postgres
+                      type: string
                     type:
                       description: Type of the cluster.
                       type: string

@@ -17,4 +17,9 @@ var NineDatahouseClusterset = []ClusterInfo{
 		Type:    SparkClusterType,
 		Version: "v3.2.4",
 	},
+	{
+		Type:    DatabaseClusterType,
+		SubType: DbTypePostgres,
+		Version: "v15.2.0",
+	},
 }

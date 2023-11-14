@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-logr/logr"
-	"github.com/minio/minio-go/v7"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -39,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	miniov7 "github.com/minio/minio-go/v7"
 	miniocred "github.com/minio/minio-go/v7/pkg/credentials"
 	kov1alpha1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
 	koversioned "github.com/nineinfra/kyuubi-operator/client/clientset/versioned"
@@ -98,29 +98,6 @@ func (r *NineClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *NineClusterReconciler) constructLabels(cluster *ninev1alpha1.NineCluster) map[string]string {
-	return map[string]string{
-		"cluster": cluster.Name,
-		"app":     ninev1alpha1.ClusterSign,
-	}
-}
-
-func (r *NineClusterReconciler) resourceName(cluster *ninev1alpha1.NineCluster) string {
-	return cluster.Name + ninev1alpha1.ClusterNameSuffix
-}
-
-func (r *NineClusterReconciler) minioNewUserName(cluster *ninev1alpha1.NineCluster) string {
-	return cluster.Name + ninev1alpha1.ClusterNameSuffix + "-user"
-}
-
-func (r *NineClusterReconciler) objectMeta(cluster *ninev1alpha1.NineCluster) metav1.ObjectMeta {
-	return metav1.ObjectMeta{
-		Name:      r.resourceName(cluster),
-		Namespace: cluster.Namespace,
-		Labels:    r.constructLabels(cluster),
-	}
 }
 
 func (r *NineClusterReconciler) reconcileResource(ctx context.Context,
@@ -197,9 +174,9 @@ func (r *NineClusterReconciler) reconcileMinioNewUserSecret(ctx context.Context,
 	}
 	desiredSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      r.minioNewUserName(cluster),
+			Name:      MinioNewUserName(cluster),
 			Namespace: cluster.Namespace,
-			Labels:    r.constructLabels(cluster),
+			Labels:    NineConstructLabels(cluster),
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: secretData,
@@ -232,7 +209,7 @@ func (r *NineClusterReconciler) reconcileMinioTenantConfigSecret(ctx context.Con
 		"config.env": []byte(strData),
 	}
 	desiredSecret := &corev1.Secret{
-		ObjectMeta: r.objectMeta(cluster),
+		ObjectMeta: NineObjectMeta(cluster),
 		Type:       corev1.SecretTypeOpaque,
 		Data:       secretData,
 	}
@@ -305,10 +282,10 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 	}
 
 	mtDesired := &miniov2.Tenant{
-		ObjectMeta: r.objectMeta(cluster),
+		ObjectMeta: NineObjectMeta(cluster),
 		Spec: miniov2.TenantSpec{
 			Configuration: &corev1.LocalObjectReference{
-				Name: r.resourceName(cluster),
+				Name: NineResourceName(cluster),
 			},
 			RequestAutoCert: &tmpBool,
 			Image:           "minio/minio:" + minio.Version,
@@ -335,7 +312,7 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 			},
 			Users: []*corev1.LocalObjectReference{
 				{
-					Name: r.minioNewUserName(cluster),
+					Name: MinioNewUserName(cluster),
 				},
 			},
 		},
@@ -370,9 +347,9 @@ func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, cluste
 		return err
 	}
 
-	_, err = mc.Tenants(cluster.Namespace).Get(context.TODO(), r.resourceName(cluster), metav1.GetOptions{})
+	_, err = mc.Tenants(cluster.Namespace).Get(context.TODO(), NineResourceName(cluster), metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
-		fmt.Println(err, "tenant get failed for:", r.resourceName(cluster))
+		fmt.Println(err, "tenant get failed for:", NineResourceName(cluster))
 		return err
 	}
 
@@ -402,7 +379,7 @@ func (r *NineClusterReconciler) getMinioExposedInfo(ctx context.Context, cluster
 				continue
 			}
 			LogInfoInterval(ctx, 5, "Try to get minio secret...")
-			if err := r.Get(ctx, types.NamespacedName{Name: r.minioNewUserName(cluster), Namespace: cluster.Namespace}, secret); err != nil && errors.IsNotFound(err) {
+			if err := r.Get(ctx, types.NamespacedName{Name: MinioNewUserName(cluster), Namespace: cluster.Namespace}, secret); err != nil && errors.IsNotFound(err) {
 				time.Sleep(time.Second)
 				continue
 			}
@@ -437,7 +414,7 @@ func (r *NineClusterReconciler) getMetastoreExposedInfo(ctx context.Context, clu
 	go func(metastorecluster *mov1alpha1.MetastoreCluster) {
 		for {
 			LogInfoInterval(ctx, 5, "Try to get metastore cluster...")
-			mctemp, err := mclient.MetastoreV1alpha1().MetastoreClusters(cluster.Namespace).Get(context.TODO(), r.resourceName(cluster), metav1.GetOptions{})
+			mctemp, err := mclient.MetastoreV1alpha1().MetastoreClusters(cluster.Namespace).Get(context.TODO(), NineResourceName(cluster), metav1.GetOptions{})
 			if err != nil && !errors.IsNotFound(err) {
 				time.Sleep(time.Second)
 				continue
@@ -464,7 +441,7 @@ func (r *NineClusterReconciler) getMetastoreExposedInfo(ctx context.Context, clu
 }
 
 func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, minioInfo *ninev1alpha1.MinioExposedInfo, bucket string, folder string, sslEnable bool) error {
-	mc, err := minio.New(minioInfo.Endpoint, &minio.Options{
+	mc, err := miniov7.New(minioInfo.Endpoint, &miniov7.Options{
 		Creds:  miniocred.NewStaticV4(minioInfo.AccessKey, minioInfo.SecretKey, ""),
 		Secure: sslEnable,
 	})
@@ -482,7 +459,7 @@ func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, 
 				continue
 			}
 			if !exists {
-				err = mc.MakeBucket(ctx, bucket, minio.MakeBucketOptions{})
+				err = mc.MakeBucket(ctx, bucket, miniov7.MakeBucketOptions{})
 				if err != nil {
 					LogInfo(ctx, err.Error())
 					time.Sleep(time.Second)
@@ -495,12 +472,38 @@ func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, 
 		}
 	}()
 	<-condition
-	_, err = mc.PutObject(ctx, bucket, folder, nil, 0, minio.PutObjectOptions{})
+	_, err = mc.PutObject(ctx, bucket, folder, nil, 0, miniov7.PutObjectOptions{})
 	if err != nil {
 		return err
 	}
 	LogInfo(ctx, "Create minio bucket and folder successfully!")
 	return nil
+}
+
+func (r *NineClusterReconciler) getDatabaseExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (mov1alpha1.DatabaseCluster, error) {
+	condition := make(chan struct{})
+	dbSvc := &corev1.Service{}
+	go func(svc *corev1.Service) {
+		for {
+			//Todo, dead loop here can be broken manually?
+			LogInfoInterval(ctx, 5, "Try to get db service...")
+			if err := r.Get(ctx, types.NamespacedName{Name: "postgresql", Namespace: cluster.Namespace}, svc); err != nil && errors.IsNotFound(err) {
+				time.Sleep(time.Second)
+				continue
+			}
+			close(condition)
+			break
+		}
+	}(dbSvc)
+
+	<-condition
+	LogInfo(ctx, "Get database exposed info successfully!")
+	md := mov1alpha1.DatabaseCluster{}
+	md.DbType = "postgres"
+	md.UserName = "hive"
+	md.Password = "hive"
+	md.ConnectionUrl = "jdbc:postgresql://postgresql:5432/hive"
+	return md, nil
 }
 
 func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, metastore ninev1alpha1.ClusterInfo) (*mov1alpha1.MetastoreCluster, error) {
@@ -514,8 +517,13 @@ func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, c
 		return nil, err
 	}
 
+	md, err := r.getDatabaseExposedInfo(ctx, cluster)
+	if err != nil {
+		return nil, err
+	}
+
 	metastoreDesired := &mov1alpha1.MetastoreCluster{
-		ObjectMeta: r.objectMeta(cluster),
+		ObjectMeta: NineObjectMeta(cluster),
 		//Todo,here should be a template instead of hardcoding?
 		Spec: mov1alpha1.MetastoreClusterSpec{
 			MetastoreVersion: metastore.Version,
@@ -535,10 +543,10 @@ func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, c
 					Name: "database",
 					Type: "database",
 					Database: mov1alpha1.DatabaseCluster{
-						ConnectionUrl: "jdbc:postgresql://postgresql:5432/hive",
-						DbType:        "postgres",
-						Password:      "hive",
-						UserName:      "hive",
+						ConnectionUrl: md.ConnectionUrl,
+						DbType:        md.DbType,
+						Password:      md.Password,
+						UserName:      md.UserName,
 					},
 				},
 				{
@@ -586,7 +594,7 @@ func (r *NineClusterReconciler) reconcileMetastoreCluster(ctx context.Context, c
 		return err
 	}
 
-	_, err = mc.MetastoreV1alpha1().MetastoreClusters(cluster.Namespace).Get(context.TODO(), r.resourceName(cluster), metav1.GetOptions{})
+	_, err = mc.MetastoreV1alpha1().MetastoreClusters(cluster.Namespace).Get(context.TODO(), NineResourceName(cluster), metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
@@ -612,7 +620,7 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 		return nil, err
 	}
 	kyuubiDesired := &kov1alpha1.KyuubiCluster{
-		ObjectMeta: r.objectMeta(cluster),
+		ObjectMeta: NineObjectMeta(cluster),
 		//Todo,here should be a template instead of hardcoding?
 		Spec: kov1alpha1.KyuubiClusterSpec{
 			KyuubiVersion: kyuubi.Version,
@@ -707,7 +715,7 @@ func (r *NineClusterReconciler) reconcileKyuubiCluster(ctx context.Context, clus
 		return err
 	}
 
-	_, err = kc.KyuubiV1alpha1().KyuubiClusters(cluster.Namespace).Get(context.TODO(), r.resourceName(cluster), metav1.GetOptions{})
+	_, err = kc.KyuubiV1alpha1().KyuubiClusters(cluster.Namespace).Get(context.TODO(), NineResourceName(cluster), metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
@@ -720,6 +728,42 @@ func (r *NineClusterReconciler) reconcileKyuubiCluster(ctx context.Context, clus
 		}
 	}
 	logger.Info("Create a KyuubiCluster successfully")
+	return nil
+}
+
+func (r *NineClusterReconciler) reconcileDatabaseCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, database ninev1alpha1.ClusterInfo, logger logr.Logger) error {
+	if database.SubType == "" {
+		database.SubType = ninev1alpha1.DefaultDbType
+	}
+	switch database.SubType {
+	case ninev1alpha1.DbTypePostgres:
+		//params := map[string]string{
+		//	"auth.username": "hive",
+		//	"auth.password": "hive",
+		//	"auth.database": "hive",
+		//}
+		//err := InstallPGByHelm(r.resourceName(cluster), cluster.Namespace, params)
+		//if err != nil {
+		//	if errors.IsAlreadyExists(err) {
+		//		err := UnInstallPGByHelm(r.resourceName(cluster), cluster.Namespace)
+		//		if err != nil {
+		//			return err
+		//		}
+		//		err = InstallPGByHelm(r.resourceName(cluster), cluster.Namespace, params)
+		//		if err != nil {
+		//			return err
+		//		}
+		//	}
+		//}
+		err := r.reconcilePGCluster(ctx, cluster, database, logger)
+		if err != nil {
+			return err
+		}
+	case ninev1alpha1.DbTypeMysql:
+		//Todo
+	}
+
+	logger.Info("Create a database successfully")
 	return nil
 }
 
@@ -752,6 +796,14 @@ func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster
 				err := r.reconcileMinioTenant(ctx, cluster, clus, logger)
 				if err != nil {
 					logger.Error(err, "Failed to reconcileMinioTenant")
+				}
+			}(v)
+		case ninev1alpha1.DatabaseClusterType:
+			//create database by default
+			go func(clus ninev1alpha1.ClusterInfo) {
+				err := r.reconcileDatabaseCluster(ctx, cluster, clus, logger)
+				if err != nil {
+					logger.Error(err, "Failed to reconcileDatabaseCluster")
 				}
 			}(v)
 		}

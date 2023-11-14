@@ -34,6 +34,10 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ma
 FROM busybox
 WORKDIR /
 COPY --from=builder /workspace/manager .
+COPY helm /usr/bin/
+ENV HELM_CACHE_HOME=/tmp
+ENV HELM_CONFIG_HOME=/tmp
+ENV HELM_DATA_HOME=/tmp
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]

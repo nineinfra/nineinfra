@@ -30,6 +30,9 @@ const DataHouseDir = "/nineinfra/datahouse"
 const DefaultMinioBucket = "nineinfra"
 const DefaultMinioDataHouseFolder = "datahouse/"
 
+// DefaultDbType ,the default value of the DbType, support mysql and postgres
+const DefaultDbType = "postgres"
+
 // NineClusterType describes the type of the nineclusters
 type NineClusterType string
 
@@ -65,6 +68,11 @@ const (
 	SuperSetClusterType   ClusterType = "superset"
 )
 
+const (
+	DbTypePostgres = "postgres"
+	DbTypeMysql    = "mysql"
+)
+
 type MinioExposedInfo struct {
 	// Endpoint of the minio cluster.
 	Endpoint string `json:"endpoint"`
@@ -88,6 +96,9 @@ type ClusterInfo struct {
 	Type ClusterType `json:"type"`
 	// Version of the cluster.
 	Version string `json:"version"`
+	// SubType,some type of cluster such as database has subtype,Support mysql,postgres
+	// +optional
+	SubType string `json:"subType"`
 	// Resource config of the cluster.
 	// +optional
 	Resource ResourceConfig `json:"resource,omitempty"`
