@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	poversioned "github.com/cloudnative-pg/client/clientset/versioned"
 	cnpgv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
@@ -10,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,11 +36,19 @@ const (
 	PGDataBase           = "hive"
 	PGDataBaseUser       = "hive"
 	PGDataBasePassword   = "hive"
-	PGResourceNameSuffix = "-postgresql"
+	PGResourceNameSuffix = "-pg"
 )
 
 func pgResourceName(cluster *ninev1alpha1.NineCluster) string {
-	return NineResourceName(cluster) + PGResourceNameSuffix
+	return NineResourceName(cluster, PGResourceNameSuffix)
+}
+
+func (r *NineClusterReconciler) pgRWSvcName(ctx context.Context, cluster *ninev1alpha1.NineCluster) string {
+	return pgResourceName(cluster) + "-rw"
+}
+
+func (r *NineClusterReconciler) pgJDBCConnetionURL(ctx context.Context, cluster *ninev1alpha1.NineCluster) string {
+	return "jdbc:postgresql://" + r.pgRWSvcName(ctx, cluster) + ":5432/" + PGDataBase
 }
 
 func (r *NineClusterReconciler) reconcilePGDBUserSecret(ctx context.Context, cluster *ninev1alpha1.NineCluster, database ninev1alpha1.ClusterInfo) error {
@@ -81,7 +89,7 @@ func (r *NineClusterReconciler) reconcilePGDBUserSecret(ctx context.Context, clu
 func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, pg ninev1alpha1.ClusterInfo) (*cnpgv1.Cluster, error) {
 	PGStorgeClass := "directpv-min-io"
 	PGDesired := &cnpgv1.Cluster{
-		ObjectMeta: NineObjectMeta(cluster),
+		ObjectMeta: NineObjectMeta(cluster, PGResourceNameSuffix),
 		Spec: cnpgv1.ClusterSpec{
 			Instances: 3,
 			StorageConfiguration: cnpgv1.StorageConfiguration{
@@ -107,11 +115,13 @@ func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster 
 }
 
 func (r *NineClusterReconciler) reconcilePGCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, pg ninev1alpha1.ClusterInfo, logger logr.Logger) error {
+	err := r.reconcilePGDBUserSecret(ctx, cluster, pg)
+	if err != nil {
+		logger.Error(err, "Failed to reconcilePGDBUserSecret")
+		return err
+	}
 	desiredPG, err := r.constructPGCluster(ctx, cluster, pg)
-	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Wait for other resource to constructPGCluster...")
-		return nil
-	} else if err != nil {
+	if err != nil {
 		logger.Error(err, "Failed to constructPGCluster")
 		return err
 	}

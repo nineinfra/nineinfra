@@ -487,7 +487,7 @@ func (r *NineClusterReconciler) getDatabaseExposedInfo(ctx context.Context, clus
 		for {
 			//Todo, dead loop here can be broken manually?
 			LogInfoInterval(ctx, 5, "Try to get db service...")
-			if err := r.Get(ctx, types.NamespacedName{Name: "postgresql", Namespace: cluster.Namespace}, svc); err != nil && errors.IsNotFound(err) {
+			if err := r.Get(ctx, types.NamespacedName{Name: r.pgRWSvcName(ctx, cluster), Namespace: cluster.Namespace}, svc); err != nil && errors.IsNotFound(err) {
 				time.Sleep(time.Second)
 				continue
 			}
@@ -500,9 +500,9 @@ func (r *NineClusterReconciler) getDatabaseExposedInfo(ctx context.Context, clus
 	LogInfo(ctx, "Get database exposed info successfully!")
 	md := mov1alpha1.DatabaseCluster{}
 	md.DbType = "postgres"
-	md.UserName = "hive"
-	md.Password = "hive"
-	md.ConnectionUrl = "jdbc:postgresql://postgresql:5432/hive"
+	md.UserName = PGDataBaseUser
+	md.Password = PGDataBasePassword
+	md.ConnectionUrl = r.pgJDBCConnetionURL(ctx, cluster)
 	return md, nil
 }
 

@@ -3,10 +3,11 @@ package controller
 import (
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 )
 
-func NineResourceName(cluster *ninev1alpha1.NineCluster) string {
-	return cluster.Name + ninev1alpha1.ClusterNameSuffix
+func NineResourceName(cluster *ninev1alpha1.NineCluster, suffixs ...string) string {
+	return cluster.Name + ninev1alpha1.ClusterNameSuffix + strings.Join(suffixs, "-")
 }
 
 func MinioNewUserName(cluster *ninev1alpha1.NineCluster) string {
@@ -20,9 +21,9 @@ func NineConstructLabels(cluster *ninev1alpha1.NineCluster) map[string]string {
 	}
 }
 
-func NineObjectMeta(cluster *ninev1alpha1.NineCluster) metav1.ObjectMeta {
+func NineObjectMeta(cluster *ninev1alpha1.NineCluster, suffixs ...string) metav1.ObjectMeta {
 	return metav1.ObjectMeta{
-		Name:      NineResourceName(cluster),
+		Name:      NineResourceName(cluster) + strings.Join(suffixs, "-"),
 		Namespace: cluster.Namespace,
 		Labels:    NineConstructLabels(cluster),
 	}

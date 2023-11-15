@@ -133,3 +133,14 @@ rules:
       - patch
       - update
       - watch
+  - apiGroups:
+      - postgresql.cnpg.io
+    resources:
+      - "*"
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
