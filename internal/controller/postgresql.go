@@ -4,6 +4,8 @@ import (
 	"context"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"time"
 
 	poversioned "github.com/cloudnative-pg/client/clientset/versioned"
 	cnpgv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
@@ -27,12 +29,38 @@ func pgResourceName(cluster *ninev1alpha1.NineCluster) string {
 	return NineResourceName(cluster, PGResourceNameSuffix)
 }
 
-func (r *NineClusterReconciler) pgRWSvcName(ctx context.Context, cluster *ninev1alpha1.NineCluster) string {
+func pgRWSvcName(cluster *ninev1alpha1.NineCluster) string {
 	return pgResourceName(cluster) + "-rw"
 }
 
-func (r *NineClusterReconciler) pgJDBCConnetionURL(ctx context.Context, cluster *ninev1alpha1.NineCluster) string {
-	return "jdbc:postgresql://" + r.pgRWSvcName(ctx, cluster) + ":5432/" + PGDataBase
+func pgJDBCConnetionURL(ctx context.Context, cluster *ninev1alpha1.NineCluster) string {
+	return "jdbc:postgresql://" + pgRWSvcName(cluster) + ":5432/" + PGDataBase
+}
+
+func (r *NineClusterReconciler) getDatabaseExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (ninev1alpha1.DatabaseCluster, error) {
+	condition := make(chan struct{})
+	dbSvc := &corev1.Service{}
+	go func(svc *corev1.Service) {
+		for {
+			//Todo, dead loop here can be broken manually?
+			LogInfoInterval(ctx, 5, "Try to get db service...")
+			if err := r.Get(ctx, types.NamespacedName{Name: pgRWSvcName(cluster), Namespace: cluster.Namespace}, svc); err != nil && errors.IsNotFound(err) {
+				time.Sleep(time.Second)
+				continue
+			}
+			close(condition)
+			break
+		}
+	}(dbSvc)
+
+	<-condition
+	LogInfo(ctx, "Get database exposed info successfully!")
+	dbc := ninev1alpha1.DatabaseCluster{}
+	dbc.DbType = ninev1alpha1.DbTypePostgres
+	dbc.UserName = PGDataBaseUser
+	dbc.Password = PGDataBasePassword
+	dbc.ConnectionUrl = pgJDBCConnetionURL(ctx, cluster)
+	return dbc, nil
 }
 
 func (r *NineClusterReconciler) reconcilePGDBUserSecret(ctx context.Context, cluster *ninev1alpha1.NineCluster, database ninev1alpha1.ClusterInfo) error {
@@ -118,7 +146,7 @@ func (r *NineClusterReconciler) reconcilePGCluster(ctx context.Context, cluster 
 	metav1.AddToGroupVersion(runtime.NewScheme(), cnpgv1.GroupVersion)
 	utilruntime.Must(cnpgv1.AddToScheme(runtime.NewScheme()))
 
-	config, err := getK8sClientConfig()
+	config, err := GetK8sClientConfig()
 	if err != nil {
 		return err
 	}

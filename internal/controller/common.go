@@ -3,6 +3,7 @@ package controller
 import (
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"strings"
 )
 
@@ -27,4 +28,10 @@ func NineObjectMeta(cluster *ninev1alpha1.NineCluster, suffixs ...string) metav1
 		Namespace: cluster.Namespace,
 		Labels:    NineConstructLabels(cluster),
 	}
+}
+
+func GetK8sClientConfig() (*rest.Config, error) {
+	//Todo,support run out of the k8s cluster
+	config, err := rest.InClusterConfig()
+	return config, err
 }

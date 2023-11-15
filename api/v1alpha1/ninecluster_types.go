@@ -73,6 +73,17 @@ const (
 	DbTypeMysql    = "mysql"
 )
 
+type DatabaseCluster struct {
+	// connection Url of the database.such as jdbc:mysql://mysql:3306/metastore
+	ConnectionUrl string `json:"connectionUrl"`
+	//Db type.Specified the driver name.Support mysql,postgres
+	DbType string `json:"dbType"`
+	// Username of the database.
+	UserName string `json:"userName"`
+	// password
+	Password string `json:"password"`
+}
+
 type MinioExposedInfo struct {
 	// Endpoint of the minio cluster.
 	Endpoint string `json:"endpoint"`
