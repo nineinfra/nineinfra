@@ -737,24 +737,6 @@ func (r *NineClusterReconciler) reconcileDatabaseCluster(ctx context.Context, cl
 	}
 	switch database.SubType {
 	case ninev1alpha1.DbTypePostgres:
-		//params := map[string]string{
-		//	"auth.username": "hive",
-		//	"auth.password": "hive",
-		//	"auth.database": "hive",
-		//}
-		//err := InstallPGByHelm(r.resourceName(cluster), cluster.Namespace, params)
-		//if err != nil {
-		//	if errors.IsAlreadyExists(err) {
-		//		err := UnInstallPGByHelm(r.resourceName(cluster), cluster.Namespace)
-		//		if err != nil {
-		//			return err
-		//		}
-		//		err = InstallPGByHelm(r.resourceName(cluster), cluster.Namespace, params)
-		//		if err != nil {
-		//			return err
-		//		}
-		//	}
-		//}
 		err := r.reconcilePGCluster(ctx, cluster, database, logger)
 		if err != nil {
 			return err

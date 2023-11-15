@@ -16,22 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// Todo deploy postgresql through helm,may be by postgresql-operator in the future
-// const (
-//
-//	PGChart        = "bitnami/postgresql"
-//	PGChartVersion = "12.10.0"
-//	ChartRepo      = "https://charts.bitnami.com/bitnami"
-//
-// )
-//
-//	func InstallPGByHelm(relName string, ns string, params map[string]string) error {
-//		return HelmInstallCmd(ChartRepo, relName, PGChart, PGChartVersion, ns, params)
-//	}
-//
-//	func UnInstallPGByHelm(relName string, ns string) error {
-//		return HelmUnInstallCmd(relName, ns)
-//	}
 const (
 	PGDataBase           = "hive"
 	PGDataBaseUser       = "hive"
@@ -95,6 +79,11 @@ func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster 
 			StorageConfiguration: cnpgv1.StorageConfiguration{
 				StorageClass: &PGStorgeClass,
 				Size:         "10Gi",
+			},
+			PostgresConfiguration: cnpgv1.PostgresConfiguration{
+				PgHBA: []string{
+					"host all all 0.0.0.0/0 trust",
+				},
 			},
 			Bootstrap: &cnpgv1.BootstrapConfiguration{
 				InitDB: &cnpgv1.BootstrapInitDB{
