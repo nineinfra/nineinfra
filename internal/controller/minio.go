@@ -101,7 +101,7 @@ func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, 
 					continue
 				}
 			}
-			LogInfo(ctx, "Create minio bucket successfully!")
+			LogInfo(ctx, "Reconcile minio bucket successfully!")
 			close(condition)
 			break
 		}
@@ -111,7 +111,7 @@ func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	LogInfo(ctx, "Create minio bucket and folder successfully!")
+	LogInfo(ctx, "Reconcile minio bucket and folder successfully!")
 	return nil
 }
 
@@ -304,7 +304,7 @@ func (r *NineClusterReconciler) reconcileMinioTenant(ctx context.Context, cluste
 		}
 	}
 
-	logger.Info("Create a MinioTenant successfully")
+	logger.Info("Reconcile a MinioTenant successfully")
 
 	return nil
 }

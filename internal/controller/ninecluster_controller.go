@@ -91,7 +91,7 @@ func (r *NineClusterReconciler) reconcileDatabaseCluster(ctx context.Context, cl
 		//Todo
 	}
 
-	logger.Info("Create a database successfully")
+	logger.Info("Reconcile a database successfully")
 	return nil
 }
 

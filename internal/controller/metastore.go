@@ -157,6 +157,6 @@ func (r *NineClusterReconciler) reconcileMetastoreCluster(ctx context.Context, c
 			return err
 		}
 	}
-	logger.Info("Create a MetastoreCluster successfully")
+	logger.Info("Reconcile a MetastoreCluster successfully")
 	return nil
 }

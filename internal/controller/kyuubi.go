@@ -129,9 +129,10 @@ func (r *NineClusterReconciler) reconcileKyuubiCluster(ctx context.Context, clus
 		logger.Info("Start to create a new KyuubiCluster...")
 		_, err := kc.KyuubiV1alpha1().KyuubiClusters(cluster.Namespace).Create(context.TODO(), desiredKyuubi, metav1.CreateOptions{})
 		if err != nil {
+			//Todo,may be exist already due to the go routine parallel exec
 			return err
 		}
 	}
-	logger.Info("Create a KyuubiCluster successfully")
+	logger.Info("Reconcile a KyuubiCluster successfully")
 	return nil
 }

@@ -156,7 +156,7 @@ func (r *NineClusterReconciler) reconcilePGCluster(ctx context.Context, cluster 
 		return err
 	}
 
-	_, err = pc.PostgresqlV1().Clusters(cluster.Namespace).Get(context.TODO(), NineResourceName(cluster), metav1.GetOptions{})
+	_, err = pc.PostgresqlV1().Clusters(cluster.Namespace).Get(context.TODO(), pgResourceName(cluster), metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
@@ -168,6 +168,6 @@ func (r *NineClusterReconciler) reconcilePGCluster(ctx context.Context, cluster 
 			return err
 		}
 	}
-	logger.Info("Create a PGCluster successfully")
+	logger.Info("Reconcile a PGCluster successfully")
 	return nil
 }
