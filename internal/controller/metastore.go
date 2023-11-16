@@ -73,6 +73,10 @@ func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, c
 		return nil, err
 	}
 
+	tmpMetastoreConf := map[string]string{}
+	for k, v := range metastore.Configs.Conf {
+		tmpMetastoreConf[k] = v
+	}
 	metastoreDesired := &mov1alpha1.MetastoreCluster{
 		ObjectMeta: NineObjectMeta(cluster),
 		//Todo,here should be a template instead of hardcoding?
@@ -82,13 +86,11 @@ func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, c
 				Replicas: 1,
 			},
 			MetastoreImage: mov1alpha1.ImageConfig{
-				Repository: "172.18.123.24:30003/library/metastore",
-				Tag:        "v3.1.3",
+				Repository: metastore.Configs.Image.Repository,
+				Tag:        metastore.Configs.Image.Tag,
+				PullPolicy: metastore.Configs.Image.PullPolicy,
 			},
-			//Todo,the bucket in minio should be created automatically
-			MetastoreConf: map[string]string{
-				"hive.metastore.warehouse.dir": ninev1alpha1.DataHouseDir,
-			},
+			MetastoreConf: tmpMetastoreConf,
 			ClusterRefs: []mov1alpha1.ClusterRef{
 				{
 					Name: "database",

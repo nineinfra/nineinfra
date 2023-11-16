@@ -24,28 +24,43 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 	if err != nil {
 		return nil, err
 	}
+	tmpKyuubiConf := map[string]string{
+		"kyuubi.kubernetes.namespace": cluster.Namespace,
+	}
+	for k, v := range kyuubi.Configs.Conf {
+		tmpKyuubiConf[k] = v
+	}
+	spark := ninev1alpha1.ClusterInfo{}
+	for _, v := range kyuubi.ClusterRefs {
+		if v.Type == ninev1alpha1.SparkClusterType {
+			v.DeepCopyInto(&spark)
+		}
+	}
+	tmpSparkConf := map[string]string{
+		"spark.hadoop.fs.s3a.access.key":             minioExposedInfo.AccessKey,
+		"spark.hadoop.fs.s3a.secret.key":             minioExposedInfo.SecretKey,
+		"spark.hadoop.fs.s3a.path.style.access":      "true",
+		"spark.hadoop.fs.s3a.connection.ssl.enabled": "false",
+		"spark.hadoop.fs.s3a.endpoint":               minioFullEndpoint(minioExposedInfo.Endpoint, false),
+	}
+	for k, v := range spark.Configs.Conf {
+		tmpSparkConf[k] = v
+	}
+
 	kyuubiDesired := &kov1alpha1.KyuubiCluster{
 		ObjectMeta: NineObjectMeta(cluster),
 		//Todo,here should be a template instead of hardcoding?
 		Spec: kov1alpha1.KyuubiClusterSpec{
 			KyuubiVersion: kyuubi.Version,
 			KyuubiResource: kov1alpha1.ResourceConfig{
-				Replicas: 1,
+				Replicas: kyuubi.Resource.Replicas,
 			},
 			KyuubiImage: kov1alpha1.ImageConfig{
-				Repository: "172.18.123.24:30003/library/kyuubi",
-				Tag:        "v1.8.1-minio",
+				Repository: kyuubi.Configs.Image.Repository,
+				Tag:        kyuubi.Configs.Image.Tag,
+				PullPolicy: kyuubi.Configs.Image.PullPolicy,
 			},
-			KyuubiConf: map[string]string{
-				"kyuubi.kubernetes.namespace":                 cluster.Namespace,
-				"kyuubi.frontend.connection.url.use.hostname": "false",
-				"kyuubi.frontend.thrift.binary.bind.port":     "10009",
-				"kyuubi.frontend.thrift.http.bind.port":       "10010",
-				"kyuubi.frontend.rest.bind.port":              "10099",
-				"kyuubi.frontend.mysql.bind.port":             "3309",
-				"kyuubi.frontend.protocols":                   "REST,THRIFT_BINARY",
-				"kyuubi.metrics.enabled":                      "false",
-			},
+			KyuubiConf: tmpKyuubiConf,
 			ClusterRefs: []kov1alpha1.ClusterRef{
 				{
 					Name: "spark",
@@ -53,17 +68,12 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 					Spark: kov1alpha1.SparkCluster{
 						SparkMaster: "k8s",
 						SparkImage: kov1alpha1.ImageConfig{
-							Repository: "172.18.123.24:30003/library/spark",
-							Tag:        "v3.2.4-minio",
+							Repository: spark.Configs.Image.Repository,
+							Tag:        spark.Configs.Image.Tag,
+							PullPolicy: spark.Configs.Image.PullPolicy,
 						},
 						SparkNamespace: cluster.Namespace,
-						SparkDefaults: map[string]string{
-							"spark.hadoop.fs.s3a.access.key":             minioExposedInfo.AccessKey,
-							"spark.hadoop.fs.s3a.secret.key":             minioExposedInfo.SecretKey,
-							"spark.hadoop.fs.s3a.path.style.access":      "true",
-							"spark.hadoop.fs.s3a.connection.ssl.enabled": "false",
-							"spark.hadoop.fs.s3a.endpoint":               minioFullEndpoint(minioExposedInfo.Endpoint, false),
-						},
+						SparkDefaults:  tmpSparkConf,
 					},
 				},
 				{

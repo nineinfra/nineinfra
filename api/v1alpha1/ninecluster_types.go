@@ -102,6 +102,28 @@ type ResourceConfig struct {
 	ResourceRequirements corev1.ResourceRequirements `json:"resourceRequirements"`
 }
 
+type ImageConfig struct {
+	Repository string `json:"repository"`
+	// Image tag. Usually the vesion of the kyuubi, default: `latest`.
+	// +optional
+	Tag string `json:"tag,omitempty"`
+	// Image pull policy. One of `Always, Never, IfNotPresent`, default: `Always`.
+	// +kubebuilder:default:=Always
+	// +kubebuilder:validation:Enum=Always;Never;IfNotPresent
+	// +optional
+	PullPolicy string `json:"pullPolicy,omitempty"`
+	// Secrets for image pull.
+	// +optional
+	PullSecrets string `json:"pullSecret,omitempty"`
+}
+
+type ClusterConfig struct {
+	Image ImageConfig `json:"image,omitempty"`
+	// Conf,k,v pairs will be into the main conf file
+	// +optional
+	Conf map[string]string `json:"conf,omitempty"`
+}
+
 type ClusterInfo struct {
 	// Type of the cluster.
 	Type ClusterType `json:"type"`
@@ -114,7 +136,9 @@ type ClusterInfo struct {
 	// +optional
 	Resource ResourceConfig `json:"resource,omitempty"`
 	// +optional
-
+	Configs ClusterConfig `json:"configs,omitempty"`
+	// +optional
+	ClusterRefs []ClusterInfo `json:"clusterRefs,omitempty"`
 }
 
 // NineClusterSpec defines the desired state of NineCluster
