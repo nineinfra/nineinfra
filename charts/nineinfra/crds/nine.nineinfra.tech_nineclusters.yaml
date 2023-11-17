@@ -38,6 +38,40 @@ spec:
                 description: Cluster set of the type of Nine
                 items:
                   properties:
+                    clusterRefs:
+                      items: {}
+                      type: array
+                    configs:
+                      properties:
+                        conf:
+                          additionalProperties:
+                            type: string
+                          description: Conf,k,v pairs will be into the main conf file
+                          type: object
+                        image:
+                          properties:
+                            pullPolicy:
+                              default: Always
+                              description: 'Image pull policy. One of `Always, Never,
+                                IfNotPresent`, default: `Always`.'
+                              enum:
+                              - Always
+                              - Never
+                              - IfNotPresent
+                              type: string
+                            pullSecret:
+                              description: Secrets for image pull.
+                              type: string
+                            repository:
+                              type: string
+                            tag:
+                              description: 'Image tag. Usually the vesion of the kyuubi,
+                                default: `latest`.'
+                              type: string
+                          required:
+                          - repository
+                          type: object
+                      type: object
                     resource:
                       description: Resource config of the cluster.
                       properties:
@@ -97,6 +131,10 @@ spec:
                               type: object
                           type: object
                       type: object
+                    subType:
+                      description: SubType,some type of cluster such as database has
+                        subtype,Support mysql,postgres
+                      type: string
                     type:
                       description: Type of the cluster.
                       type: string
