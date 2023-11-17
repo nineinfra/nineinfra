@@ -1,9 +1,9 @@
 # Default values for Nineinfra.
 ---
 image:
-  repository: 172.18.123.24:30003/library/nineinfra
+  repository: nineinfra/nineinfra
   pullPolicy: Always
-  tag: v0.3.3
+  tag: v0.4.4
 
 imagePullSecrets: []
 nameOverride: ""
