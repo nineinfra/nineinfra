@@ -141,9 +141,6 @@ spec:
                     version:
                       description: Version of the cluster.
                       type: string
-                  required:
-                  - type
-                  - version
                   type: object
                 type: array
               dataVolume:

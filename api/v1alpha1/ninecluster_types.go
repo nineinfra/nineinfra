@@ -126,8 +126,10 @@ type ClusterConfig struct {
 
 type ClusterInfo struct {
 	// Type of the cluster.
+	// +optional
 	Type ClusterType `json:"type"`
 	// Version of the cluster.
+	// +optional
 	Version string `json:"version"`
 	// SubType,some type of cluster such as database has subtype,Support mysql,postgres
 	// +optional
