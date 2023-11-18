@@ -55,10 +55,8 @@ func (in *ClusterInfo) DeepCopyInto(out *ClusterInfo) {
 	in.Configs.DeepCopyInto(&out.Configs)
 	if in.ClusterRefs != nil {
 		in, out := &in.ClusterRefs, &out.ClusterRefs
-		*out = make([]ClusterInfo, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
+		*out = make([]ClusterType, len(*in))
+		copy(*out, *in)
 	}
 }
 

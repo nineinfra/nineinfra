@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"github.com/go-logr/logr"
-	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -13,6 +12,7 @@ import (
 	kov1alpha1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
 	koversioned "github.com/nineinfra/kyuubi-operator/client/clientset/versioned"
 	koscheme "github.com/nineinfra/kyuubi-operator/client/clientset/versioned/scheme"
+	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 )
 
 func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (*kov1alpha1.KyuubiCluster, error) {
@@ -30,12 +30,11 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 	for k, v := range kyuubi.Configs.Conf {
 		tmpKyuubiConf[k] = v
 	}
-	spark := ninev1alpha1.ClusterInfo{}
-	for _, v := range kyuubi.ClusterRefs {
-		if v.Type == ninev1alpha1.SparkClusterType {
-			v.DeepCopyInto(&spark)
-		}
+	spark := GetRefClusterInfo(cluster, kyuubi.ClusterRefs[0])
+	if spark == nil {
+		spark = GetDefaultRefClusterInfo(kyuubi.ClusterRefs[0])
 	}
+
 	tmpSparkConf := map[string]string{
 		"spark.hadoop.fs.s3a.access.key":             minioExposedInfo.AccessKey,
 		"spark.hadoop.fs.s3a.secret.key":             minioExposedInfo.SecretKey,

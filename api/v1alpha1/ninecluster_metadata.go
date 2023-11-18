@@ -23,18 +23,8 @@ var NineDatahouseClusterset = []ClusterInfo{
 				"kyuubi.metrics.enabled":                      "false",
 			},
 		},
-		ClusterRefs: []ClusterInfo{
-			{
-				Type:    SparkClusterType,
-				Version: "v3.2.4",
-				Configs: ClusterConfig{
-					Image: ImageConfig{
-						Repository: "172.18.123.24:30003/library/spark",
-						Tag:        "v3.2.4-minio",
-						PullPolicy: "IfNotPresent",
-					},
-				},
-			},
+		ClusterRefs: []ClusterType{
+			SparkClusterType,
 		},
 	},
 	{
@@ -66,5 +56,16 @@ var NineDatahouseClusterset = []ClusterInfo{
 		Type:    DatabaseClusterType,
 		SubType: DbTypePostgres,
 		Version: "v15.2.0",
+	},
+	{
+		Type:    SparkClusterType,
+		Version: "v3.2.4",
+		Configs: ClusterConfig{
+			Image: ImageConfig{
+				Repository: "172.18.123.24:30003/library/spark",
+				Tag:        "v3.2.4-minio",
+				PullPolicy: "IfNotPresent",
+			},
+		},
 	},
 }

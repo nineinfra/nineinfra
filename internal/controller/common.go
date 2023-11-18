@@ -35,3 +35,21 @@ func GetK8sClientConfig() (*rest.Config, error) {
 	config, err := rest.InClusterConfig()
 	return config, err
 }
+
+func GetRefClusterInfo(cluster *ninev1alpha1.NineCluster, clusterType ninev1alpha1.ClusterType) *ninev1alpha1.ClusterInfo {
+	for _, v := range cluster.Spec.ClusterSet {
+		if v.Type == clusterType {
+			return &v
+		}
+	}
+	return nil
+}
+
+func GetDefaultRefClusterInfo(clusterType ninev1alpha1.ClusterType) *ninev1alpha1.ClusterInfo {
+	for _, v := range ninev1alpha1.NineDatahouseClusterset {
+		if v.Type == clusterType {
+			return &v
+		}
+	}
+	return nil
+}

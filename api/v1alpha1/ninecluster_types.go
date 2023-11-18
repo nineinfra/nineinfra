@@ -126,21 +126,19 @@ type ClusterConfig struct {
 
 type ClusterInfo struct {
 	// Type of the cluster.
-	// +optional
 	Type ClusterType `json:"type"`
 	// Version of the cluster.
-	// +optional
 	Version string `json:"version"`
 	// SubType,some type of cluster such as database has subtype,Support mysql,postgres
 	// +optional
-	SubType string `json:"subType"`
+	SubType string `json:"subType,omitempty"`
 	// Resource config of the cluster.
 	// +optional
 	Resource ResourceConfig `json:"resource,omitempty"`
 	// +optional
 	Configs ClusterConfig `json:"configs,omitempty"`
 	// +optional
-	ClusterRefs []ClusterInfo `json:"clusterRefs,omitempty"`
+	ClusterRefs []ClusterType `json:"clusterRefs,omitempty"`
 }
 
 // NineClusterSpec defines the desired state of NineCluster
