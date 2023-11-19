@@ -9,7 +9,7 @@ var NineDatahouseClusterset = []ClusterInfo{
 		},
 		Configs: ClusterConfig{
 			Image: ImageConfig{
-				Repository: "172.18.123.24:30003/library/kyuubi",
+				Repository: "nineinfra/kyuubi",
 				Tag:        "v1.8.1-minio",
 				PullPolicy: "IfNotPresent",
 			},
@@ -32,7 +32,7 @@ var NineDatahouseClusterset = []ClusterInfo{
 		Version: "v3.1.3",
 		Configs: ClusterConfig{
 			Image: ImageConfig{
-				Repository: "172.18.123.24:30003/library/metastore",
+				Repository: "nineinfra/metastore",
 				Tag:        "v3.1.3",
 				PullPolicy: "IfNotPresent",
 			},
@@ -62,7 +62,7 @@ var NineDatahouseClusterset = []ClusterInfo{
 		Version: "v3.2.4",
 		Configs: ClusterConfig{
 			Image: ImageConfig{
-				Repository: "172.18.123.24:30003/library/spark",
+				Repository: "nineinfra/spark",
 				Tag:        "v3.2.4-minio",
 				PullPolicy: "IfNotPresent",
 			},
