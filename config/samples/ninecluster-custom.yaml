@@ -1,0 +1,56 @@
+apiVersion: nine.nineinfra.tech/v1alpha1
+kind: NineCluster
+metadata:
+  labels:
+    app.kubernetes.io/name: ninecluster
+    app.kubernetes.io/instance: ninecluster-custom
+  name: ninecluster-custom
+spec:
+  dataVolume: 32
+  type: "DataHouse"
+  clusterSet:
+    - type: "kyuubi"
+      version: "v1.8.0"
+      resource:
+        replicas: 1
+      configs:
+        image:
+          repository: "nineinfra/kyuubi"
+          tag: "v1.8.0-minio"
+          pullPolicy: "IfNotPresent"
+        conf: # reference to https://kyuubi.readthedocs.io/en/master/configuration/settings.html
+          "kyuubi.session.engine.alive.max.failures": "4"
+      clusterRefs:
+        - "spark"
+    - type: "metastore"
+      version: "v3.1.3"
+      resource:
+        replicas: 1
+      configs:
+        image:
+          repository: "nineinfra/metastore"
+          tag: "v3.1.3"
+          pullPolicy: "IfNotPresent"
+        conf: # reference to https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-HiveMetastoreConnectionPoolingConfiguration
+          "javax.jdo.option.Multithreaded": "true"
+    - type: "minio"
+      version: "RELEASE.2023-09-07T02-05-02Z"
+      configs:
+        image:
+          repository: "minio/minio"
+          tag: "RELEASE.2023-09-07T02-05-02Z"
+          pullPolicy: "IfNotPresent"
+    - type: "database"
+      version: "v16.0.0"
+      subType: "postgres"
+    - type: "spark"
+      version: "v3.2.4"
+      configs:
+        image:
+          repository: "nineinfra/spark"
+          tag: "v3.2.4-minio"
+          pullPolicy: "IfNotPresent"
+        conf: # referenct to https://spark.apache.org/docs/3.2.4/configuration.html
+          "spark.memory.offHeap.enabled": "true"
+          "spark.memory.offHeap.size": "1073741824"
+

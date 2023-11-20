@@ -3,14 +3,14 @@ package v1alpha1
 var NineDatahouseClusterset = []ClusterInfo{
 	{
 		Type:    KyuubiClusterType,
-		Version: "v1.8.1",
+		Version: "v1.8.0",
 		Resource: ResourceConfig{
 			Replicas: 1,
 		},
 		Configs: ClusterConfig{
 			Image: ImageConfig{
 				Repository: "nineinfra/kyuubi",
-				Tag:        "v1.8.1-minio",
+				Tag:        "v1.8.0-minio",
 				PullPolicy: "IfNotPresent",
 			},
 			Conf: map[string]string{
@@ -55,7 +55,7 @@ var NineDatahouseClusterset = []ClusterInfo{
 	{
 		Type:    DatabaseClusterType,
 		SubType: DbTypePostgres,
-		Version: "v15.2.0",
+		Version: "v16.0.0",
 	},
 	{
 		Type:    SparkClusterType,
