@@ -109,6 +109,9 @@ func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster 
 				Size:         "10Gi",
 			},
 			PostgresConfiguration: cnpgv1.PostgresConfiguration{
+				Parameters: map[string]string{
+					"idle_in_transaction_session_timeout": "600000",
+				},
 				PgHBA: []string{
 					"host all all 0.0.0.0/0 trust",
 				},
