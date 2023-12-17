@@ -37,7 +37,7 @@ var NineDatahouseClusterset = []ClusterInfo{
 				PullPolicy: "IfNotPresent",
 			},
 			Conf: map[string]string{
-				"hive.metastore.warehouse.dir": DataHouseDir,
+				"hive.metastore.warehouse.dir": "s3a:/" + DataHouseDir,
 			},
 		},
 	},
