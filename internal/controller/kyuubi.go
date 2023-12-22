@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,10 +19,12 @@ import (
 func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (*kov1alpha1.KyuubiCluster, error) {
 	minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
 	if err != nil {
+		LogError(ctx, err, "get minio exposed info failed")
 		return nil, err
 	}
 	metastoreExposedInfo, err := r.getMetastoreExposedInfo(ctx, cluster)
 	if err != nil {
+		LogError(ctx, err, "get metastore exposed info failed")
 		return nil, err
 	}
 	tmpKyuubiConf := map[string]string{
@@ -45,7 +48,7 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 	for k, v := range spark.Configs.Conf {
 		tmpSparkConf[k] = v
 	}
-
+	LogInfo(ctx, fmt.Sprintf("sparkConf:%v\n", tmpSparkConf))
 	kyuubiDesired := &kov1alpha1.KyuubiCluster{
 		ObjectMeta: NineObjectMeta(cluster),
 		//Todo,here should be a template instead of hardcoding?

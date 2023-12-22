@@ -32,9 +32,11 @@ func (r *NineClusterReconciler) getMetastoreExposedInfo(ctx context.Context, clu
 		for {
 			LogInfoInterval(ctx, 5, "Try to get metastore cluster...")
 			mctemp, err := mclient.MetastoreV1alpha1().MetastoreClusters(cluster.Namespace).Get(context.TODO(), NineResourceName(cluster), metav1.GetOptions{})
-			if err != nil && !errors.IsNotFound(err) {
+			if err != nil && errors.IsNotFound(err) {
 				time.Sleep(time.Second)
 				continue
+			} else if err != nil {
+				LogError(ctx, err, "get metastore cluster failed")
 			}
 			LogInfoInterval(ctx, 5, "Try to get metastore cluster status...")
 			if mctemp.Status.ExposedInfos == nil {
