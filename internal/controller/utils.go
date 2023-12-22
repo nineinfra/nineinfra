@@ -27,6 +27,11 @@ func LogInfo(ctx context.Context, msg string) {
 	logger.Info(msg)
 }
 
+func LogError(ctx context.Context, err error, msg string) {
+	logger, _ := logr.FromContext(ctx)
+	logger.Error(err, msg)
+}
+
 func HelmInstallCmd(chartRepo string, releaseName string, chartPath string, chartVersion string, ns string, params map[string]string) error {
 	//argString := " --repo " + chartRepo + " " + chartPath + " --version=" + chartVersion + " --namespace " + ns
 	argString := " " + chartPath + " --version=" + chartVersion + " --namespace " + ns

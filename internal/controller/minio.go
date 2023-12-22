@@ -55,11 +55,15 @@ func (r *NineClusterReconciler) getMinioExposedInfo(ctx context.Context, cluster
 			if err := r.Get(ctx, types.NamespacedName{Name: "minio", Namespace: cluster.Namespace}, svc); err != nil && errors.IsNotFound(err) {
 				time.Sleep(time.Second)
 				continue
+			} else if err != nil {
+				LogError(ctx, err, "get minio service failed")
 			}
 			LogInfoInterval(ctx, 5, "Try to get minio secret...")
 			if err := r.Get(ctx, types.NamespacedName{Name: MinioNewUserName(cluster), Namespace: cluster.Namespace}, secret); err != nil && errors.IsNotFound(err) {
 				time.Sleep(time.Second)
 				continue
+			} else if err != nil {
+				LogError(ctx, err, "get minio secret failed")
 			}
 			close(condition)
 			break
