@@ -151,6 +151,9 @@ spec:
                 description: Data Volume of the ninecluster. The unit of the data
                   volume is Gi.
                 type: integer
+              storageClass:
+                description: the storage class. default value is directpv-min-io
+                type: string
               type:
                 description: Type of the ninecluster. default value is DataHouse.
                 type: string

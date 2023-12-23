@@ -3,7 +3,7 @@
 image:
   repository: nineinfra/nineinfra
   pullPolicy: IfNotPresent
-  tag: v0.4.4
+  tag: v0.4.6
 
 imagePullSecrets: []
 nameOverride: ""
