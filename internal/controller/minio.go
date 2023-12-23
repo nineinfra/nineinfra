@@ -216,8 +216,7 @@ func (r *NineClusterReconciler) getDirectPVNodesCount(ctx context.Context) (int3
 }
 
 func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) (*miniov2.Tenant, error) {
-	//Todo, this value should be loaded automatically
-	sc := "directpv-min-io"
+	sc := GetStorageClassName(cluster)
 	tmpBool := false
 	q, _ := capacityPerVolume(strconv.Itoa(GiB2Bytes(cluster.Spec.DataVolume)), 4*4)
 

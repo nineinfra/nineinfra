@@ -145,6 +145,9 @@ type ClusterInfo struct {
 type NineClusterSpec struct {
 	// Data Volume of the ninecluster. The unit of the data volume is Gi.
 	DataVolume int `json:"dataVolume"`
+	// the storage class. default value is directpv-min-io
+	// +optional
+	StorageClass string `json:"storageClass"`
 	// Type of the ninecluster. default value is DataHouse.
 	// +optional
 	Type NineClusterType `json:"type,omitempty"`
