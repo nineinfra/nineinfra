@@ -44,6 +44,11 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 		"spark.hadoop.fs.s3a.path.style.access":      "true",
 		"spark.hadoop.fs.s3a.connection.ssl.enabled": "false",
 		"spark.hadoop.fs.s3a.endpoint":               minioFullEndpoint(minioExposedInfo.Endpoint, false),
+		"spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.claimName":    "OnDemand",
+		"spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.storageClass": GetStorageClassName(cluster),
+		"spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit":    DefaultShuffleDiskSize,
+		"spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.path":           DefaultShuffleDiskMountPath,
+		"spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.readOnly":       "false",
 	}
 	for k, v := range spark.Configs.Conf {
 		tmpSparkConf[k] = v
