@@ -13,6 +13,7 @@ require (
 	github.com/nineinfra/metastore-operator v0.313.2
 	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.29.0
+	github.com/selectdb/doris-operator v0.0.0-20231229091107-c68dee6644fb
 	k8s.io/api v0.28.3
 	k8s.io/apimachinery v0.28.3
 	k8s.io/client-go v0.28.3

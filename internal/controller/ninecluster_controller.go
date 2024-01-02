@@ -97,7 +97,11 @@ func (r *NineClusterReconciler) reconcileDatabaseCluster(ctx context.Context, cl
 
 func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster *ninev1alpha1.NineCluster, logger logr.Logger) {
 	if cluster.Spec.ClusterSet == nil {
-		cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseClusterset
+		if ninev1alpha1.ClusterType(cluster.Spec.Features[ninev1alpha1.NineClusterFeatureOlap]) == ninev1alpha1.DorisClusterType {
+			cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseWithOLAPClusterset
+		} else {
+			cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseClusterset
+		}
 	}
 	//Todo,add check if the cluster running?
 	for _, v := range cluster.Spec.ClusterSet {
@@ -134,20 +138,26 @@ func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster
 					logger.Error(err, "Failed to reconcile DatabaseCluster")
 				}
 			}(v)
+		case ninev1alpha1.DorisClusterType:
+			//create doris cluster by default
+			go func(clus ninev1alpha1.ClusterInfo) {
+				err := r.reconcileDorisCluster(ctx, cluster, clus, logger)
+				if err != nil {
+					logger.Error(err, "Failed to reconcile DorisCluster")
+				}
+			}(v)
 		}
 	}
 }
 
 func (r *NineClusterReconciler) reconcileClusters(ctx context.Context, cluster *ninev1alpha1.NineCluster, logger logr.Logger) error {
 	if cluster.Spec.Type == "" {
-		cluster.Spec.Type = ninev1alpha1.DataHouse
+		cluster.Spec.Type = ninev1alpha1.NineClusterTypeBatch
 	}
 	switch cluster.Spec.Type {
-	case ninev1alpha1.DataHouse:
+	case ninev1alpha1.NineClusterTypeBatch:
 		r.renconcileDataHouse(ctx, cluster, logger)
-	case ninev1alpha1.DataLake:
-		//Todo
-	case ninev1alpha1.HouseAndLake:
+	case ninev1alpha1.NineClusterTypeStream:
 		//Todo
 	}
 	return nil

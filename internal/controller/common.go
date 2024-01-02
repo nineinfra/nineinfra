@@ -54,9 +54,9 @@ func GetDefaultRefClusterInfo(clusterType ninev1alpha1.ClusterType) *ninev1alpha
 	return nil
 }
 
-func GetStorageClassName(cluster *ninev1alpha1.NineCluster) string {
-	if cluster.Spec.StorageClass != "" {
-		return cluster.Spec.StorageClass
+func GetStorageClassName(cluster *ninev1alpha1.ClusterInfo) string {
+	if cluster.Resource.StorageClass != "" {
+		return cluster.Resource.StorageClass
 	}
 	return DefaultStorageClass
 }

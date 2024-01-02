@@ -131,6 +131,9 @@ spec:
                                 value. Requests cannot exceed Limits. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                               type: object
                           type: object
+                        storageClass:
+                          description: the storage class. default value is nineinfra-default
+                          type: string
                       type: object
                     subType:
                       description: SubType,some type of cluster such as database has
@@ -151,9 +154,11 @@ spec:
                 description: Data Volume of the ninecluster. The unit of the data
                   volume is Gi.
                 type: integer
-              storageClass:
-                description: the storage class. default value is directpv-min-io
-                type: string
+              features:
+                additionalProperties:
+                  type: string
+                description: Features of the ninecluster.
+                type: object
               type:
                 description: Type of the ninecluster. default value is DataHouse.
                 type: string

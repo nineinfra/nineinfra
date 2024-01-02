@@ -99,7 +99,7 @@ func (r *NineClusterReconciler) reconcilePGDBUserSecret(ctx context.Context, clu
 }
 
 func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, pg ninev1alpha1.ClusterInfo) (*cnpgv1.Cluster, error) {
-	PGStorgeClass := GetStorageClassName(cluster)
+	PGStorgeClass := GetStorageClassName(&pg)
 	PGDesired := &cnpgv1.Cluster{
 		ObjectMeta: NineObjectMeta(cluster, PGResourceNameSuffix),
 		Spec: cnpgv1.ClusterSpec{

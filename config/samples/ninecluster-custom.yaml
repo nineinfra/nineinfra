@@ -7,7 +7,7 @@ metadata:
   name: ninecluster-custom
 spec:
   dataVolume: 32
-  type: "DataHouse"
+  type: "batch"
   clusterSet:
     - type: "kyuubi"
       version: "v1.8.0"

@@ -44,15 +44,20 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 		"spark.hadoop.fs.s3a.path.style.access":      "true",
 		"spark.hadoop.fs.s3a.connection.ssl.enabled": "false",
 		"spark.hadoop.fs.s3a.endpoint":               minioFullEndpoint(minioExposedInfo.Endpoint, false),
-		"spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.claimName":    "OnDemand",
-		"spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.storageClass": GetStorageClassName(cluster),
-		"spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit":    DefaultShuffleDiskSize,
-		"spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.path":           DefaultShuffleDiskMountPath,
-		"spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.readOnly":       "false",
 	}
+
 	for k, v := range spark.Configs.Conf {
 		tmpSparkConf[k] = v
 	}
+	//Currently,rss not supported,so one shuffle disk should be guaranteed
+	if _, ok := tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit"]; !ok {
+		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.claimName"] = "OnDemand"
+		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.storageClass"] = GetStorageClassName(&kyuubi)
+		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit"] = DefaultShuffleDiskSize
+		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.path"] = DefaultShuffleDiskMountPath
+		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.readOnly"] = "false"
+	}
+
 	LogInfo(ctx, fmt.Sprintf("sparkConf:%v\n", tmpSparkConf))
 	kyuubiDesired := &kov1alpha1.KyuubiCluster{
 		ObjectMeta: NineObjectMeta(cluster),

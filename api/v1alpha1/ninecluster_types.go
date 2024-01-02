@@ -38,9 +38,8 @@ type NineClusterType string
 
 // Different types of nineclusters.
 const (
-	DataHouse    NineClusterType = "DataHouse"
-	DataLake     NineClusterType = "DataLake"
-	HouseAndLake NineClusterType = "HouseAndLake"
+	NineClusterTypeStream NineClusterType = "stream"
+	NineClusterTypeBatch  NineClusterType = "batch"
 )
 
 const (
@@ -53,24 +52,31 @@ type ClusterType string
 
 // Different types of clusters.
 const (
-	KyuubiClusterType     ClusterType = "kyuubi"
-	ClickhouseClusterType ClusterType = "clickhouse"
-	SparkClusterType      ClusterType = "spark"
-	FlinkClusterType      ClusterType = "flink"
-	MetaStoreClusterType  ClusterType = "metastore"
-	DatabaseClusterType   ClusterType = "database"
-	MinioClusterType      ClusterType = "minio"
-	HdfsClusterType       ClusterType = "hdfs"
-	KafkaClusterType      ClusterType = "kafka"
-	ZookeeperClusterType  ClusterType = "zookeeper"
-	AirflowClusterType    ClusterType = "airflow"
-	NifiClusterType       ClusterType = "nifi"
-	SuperSetClusterType   ClusterType = "superset"
+	KyuubiClusterType    ClusterType = "kyuubi"
+	DorisClusterType     ClusterType = "doris"
+	DorisFEClusterType   ClusterType = "doris-fe"
+	DorisBEClusterType   ClusterType = "doris-be"
+	SparkClusterType     ClusterType = "spark"
+	FlinkClusterType     ClusterType = "flink"
+	MetaStoreClusterType ClusterType = "metastore"
+	DatabaseClusterType  ClusterType = "database"
+	MinioClusterType     ClusterType = "minio"
+	HdfsClusterType      ClusterType = "hdfs"
+	KafkaClusterType     ClusterType = "kafka"
+	ZookeeperClusterType ClusterType = "zookeeper"
+	AirflowClusterType   ClusterType = "airflow"
+	NifiClusterType      ClusterType = "nifi"
+	SuperSetClusterType  ClusterType = "superset"
 )
 
 const (
 	DbTypePostgres = "postgres"
 	DbTypeMysql    = "mysql"
+)
+
+const (
+	NineClusterFeatureOlap     = "olap"
+	NineClusterFeatureDatalake = "datalake"
 )
 
 type DatabaseCluster struct {
@@ -97,6 +103,9 @@ type ResourceConfig struct {
 	// The replicas of the cluster workload.Default value is 1
 	// +optional
 	Replicas int32 `json:"replicas"`
+	// the storage class. default value is nineinfra-default
+	// +optional
+	StorageClass string `json:"storageClass"`
 	// The resource requirements of the cluster workload.
 	// +optional
 	ResourceRequirements corev1.ResourceRequirements `json:"resourceRequirements"`
@@ -145,12 +154,12 @@ type ClusterInfo struct {
 type NineClusterSpec struct {
 	// Data Volume of the ninecluster. The unit of the data volume is Gi.
 	DataVolume int `json:"dataVolume"`
-	// the storage class. default value is directpv-min-io
-	// +optional
-	StorageClass string `json:"storageClass"`
 	// Type of the ninecluster. default value is DataHouse.
 	// +optional
 	Type NineClusterType `json:"type,omitempty"`
+	// Features of the ninecluster.
+	// +optional
+	Features map[string]string `json:"features,omitempty"`
 	// Cluster set of the type of Nine
 	// +optional
 	ClusterSet []ClusterInfo `json:"clusterSet,omitempty"`
