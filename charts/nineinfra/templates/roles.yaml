@@ -144,3 +144,14 @@ rules:
       - patch
       - update
       - watch
+  - apiGroups:
+      - doris.selectdb.com
+    resources:
+      - "*"
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch

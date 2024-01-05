@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/go-logr/logr"
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 	dov1 "github.com/selectdb/doris-operator/api/doris/v1"
@@ -23,22 +24,25 @@ const (
 )
 
 func (r *NineClusterReconciler) getFEAndBEClusterInfo(cluster *ninev1alpha1.NineCluster, doris ninev1alpha1.ClusterInfo) (*ninev1alpha1.ClusterInfo, *ninev1alpha1.ClusterInfo, error) {
-	var fecluster, becluster *ninev1alpha1.ClusterInfo
+	var fecluster, becluster ninev1alpha1.ClusterInfo
+	var fe, be bool
 	for _, cType := range doris.ClusterRefs {
 		for _, v := range cluster.Spec.ClusterSet {
 			if cType == v.Type {
 				if cType == ninev1alpha1.DorisFEClusterType {
-					fecluster = &v
+					v.DeepCopyInto(&fecluster)
+					fe = true
 				} else if cType == ninev1alpha1.DorisBEClusterType {
-					becluster = &v
+					v.DeepCopyInto(&becluster)
+					be = true
 				}
 			}
 		}
 	}
-	if fecluster == nil || becluster == nil {
+	if !fe || !be {
 		return nil, nil, errors.New("invalid parameters,please supply valid fe and be info")
 	}
-	return fecluster, becluster, nil
+	return &fecluster, &becluster, nil
 }
 
 func (r *NineClusterReconciler) constructDorisCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, doris ninev1alpha1.ClusterInfo) (*dov1.DorisCluster, error) {
@@ -104,7 +108,7 @@ func (r *NineClusterReconciler) reconcileDorisCluster(ctx context.Context, clust
 
 	_, err = dc.DorisV1().DorisClusters(cluster.Namespace).Get(context.TODO(), NineResourceName(cluster), metav1.GetOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
-		logger.Error(err, "doris cluster get failed for:", NineResourceName(cluster))
+		logger.Error(err, fmt.Sprintf("doris cluster get failed for %s", NineResourceName(cluster)))
 		return err
 	}
 
