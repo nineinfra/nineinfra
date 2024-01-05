@@ -76,8 +76,10 @@ const (
 
 const (
 	NineClusterFeatureOlap     = "olap"
-	NineClusterFeatureDatalake = "datalake"
+	NineClusterFeatureDataLake = "data-lake"
 )
+
+var NineInfraSupportedOlapList = []ClusterType{DorisClusterType}
 
 type DatabaseCluster struct {
 	// connection Url of the database.such as jdbc:mysql://mysql:3306/metastore
