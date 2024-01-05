@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -59,4 +60,23 @@ func GetStorageClassName(cluster *ninev1alpha1.ClusterInfo) string {
 		return cluster.Resource.StorageClass
 	}
 	return DefaultStorageClass
+}
+
+func CheckOlapSupported(c ninev1alpha1.ClusterType) bool {
+	for _, v := range ninev1alpha1.NineInfraSupportedOlapList {
+		if c == v {
+			return true
+		}
+	}
+	return false
+}
+
+func GetOlapClusterType(cluster *ninev1alpha1.NineCluster) (ninev1alpha1.ClusterType, error) {
+	if value, ok := cluster.Spec.Features[ninev1alpha1.NineClusterFeatureOlap]; ok {
+		c := ninev1alpha1.ClusterType(value)
+		if CheckOlapSupported(c) {
+			return c, nil
+		}
+	}
+	return "", errors.New("no supported olap found")
 }

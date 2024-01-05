@@ -97,10 +97,11 @@ func (r *NineClusterReconciler) reconcileDatabaseCluster(ctx context.Context, cl
 
 func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster *ninev1alpha1.NineCluster, logger logr.Logger) {
 	if cluster.Spec.ClusterSet == nil {
-		if ninev1alpha1.ClusterType(cluster.Spec.Features[ninev1alpha1.NineClusterFeatureOlap]) == ninev1alpha1.DorisClusterType {
-			cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseWithOLAPClusterset
-		} else {
+		_, err := GetOlapClusterType(cluster)
+		if err != nil {
 			cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseClusterset
+		} else {
+			cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseWithOLAPClusterset
 		}
 	}
 	//Todo,add check if the cluster running?
