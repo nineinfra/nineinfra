@@ -128,8 +128,23 @@ type ImageConfig struct {
 	PullSecrets string `json:"pullSecret,omitempty"`
 }
 
+type AuthConfig struct {
+	// AuthType. The auth type of the cluster,default:`ldap`.
+	// +optional
+	AuthType string `json:"authType,omitempty"`
+	// UserName for the cluster access.
+	// +optional
+	UserName string `json:"userName,omitempty"`
+	// Password for the cluster access.
+	// +optional
+	Password string `json:"password,omitempty"`
+}
+
 type ClusterConfig struct {
 	Image ImageConfig `json:"image,omitempty"`
+	// Auth, Auth info of the cluster
+	// +optional
+	Auth AuthConfig `json:"auth,omitempty"`
 	// Conf,k,v pairs will be into the main conf file
 	// +optional
 	Conf map[string]string `json:"conf,omitempty"`

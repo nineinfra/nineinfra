@@ -44,6 +44,19 @@ spec:
                       type: array
                     configs:
                       properties:
+                        auth:
+                          description: Auth, Auth info of the cluster
+                          properties:
+                            authType:
+                              description: AuthType. The auth type of the cluster,default:`ldap`.
+                              type: string
+                            password:
+                              description: Password for the cluster access.
+                              type: string
+                            userName:
+                              description: UserName for the cluster access.
+                              type: string
+                          type: object
                         conf:
                           additionalProperties:
                             type: string
