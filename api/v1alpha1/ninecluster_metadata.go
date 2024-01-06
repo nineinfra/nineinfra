@@ -146,6 +146,12 @@ var NineDatahouseWithOLAPClusterset = []ClusterInfo{
 	{
 		Type:    DorisClusterType,
 		Version: "v2.0.2",
+		Configs: ClusterConfig{
+			Auth: AuthConfig{
+				UserName: "root",
+				Password: "root",
+			},
+		},
 		ClusterRefs: []ClusterType{
 			DorisFEClusterType,
 			DorisBEClusterType,
@@ -175,7 +181,7 @@ var NineDatahouseWithOLAPClusterset = []ClusterInfo{
 		Resource: ResourceConfig{
 			ResourceRequirements: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
-					"storage": *resource.NewQuantity(int64(100), resource.BinarySI),
+					"storage": *resource.NewQuantity(int64(100*1024*1024*1024), resource.BinarySI),
 				},
 			},
 		},

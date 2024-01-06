@@ -21,6 +21,8 @@ const (
 	DorisResourceNameSuffix        = "-doris"
 	DefaultDorisBeStorageMountPath = "/opt/apache-doris/be/storage"
 	DefaultDorisBeStoragePVName    = "bestorage"
+	DefaultDorisAdminUser          = "root"
+	DefaultDorisAdminPassword      = "root"
 )
 
 func (r *NineClusterReconciler) getFEAndBEClusterInfo(cluster *ninev1alpha1.NineCluster, doris ninev1alpha1.ClusterInfo) (*ninev1alpha1.ClusterInfo, *ninev1alpha1.ClusterInfo, error) {
@@ -45,6 +47,18 @@ func (r *NineClusterReconciler) getFEAndBEClusterInfo(cluster *ninev1alpha1.Nine
 	return &fecluster, &becluster, nil
 }
 
+func (r *NineClusterReconciler) getAdminUserInfo(cluster *ninev1alpha1.NineCluster, doris ninev1alpha1.ClusterInfo) (string, string) {
+	userName := doris.Configs.Auth.UserName
+	password := doris.Configs.Auth.Password
+	if userName == "" {
+		userName = DefaultDorisAdminUser
+	}
+	if password == "" {
+		password = DefaultDorisAdminPassword
+	}
+	return userName, password
+}
+
 func (r *NineClusterReconciler) constructDorisCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, doris ninev1alpha1.ClusterInfo) (*dov1.DorisCluster, error) {
 	logger := log.FromContext(ctx)
 	fecluster, becluster, err := r.getFEAndBEClusterInfo(cluster, doris)
@@ -54,6 +68,7 @@ func (r *NineClusterReconciler) constructDorisCluster(ctx context.Context, clust
 	}
 	DorisStorgeClass := GetStorageClassName(&doris)
 	replicas := int32(3)
+	userName, _ := r.getAdminUserInfo(cluster, doris)
 	DorisDesired := &dov1.DorisCluster{
 		ObjectMeta: NineObjectMeta(cluster, DorisResourceNameSuffix),
 		Spec: dov1.DorisClusterSpec{
@@ -73,12 +88,20 @@ func (r *NineClusterReconciler) constructDorisCluster(ctx context.Context, clust
 							MountPath: DefaultDorisBeStorageMountPath,
 							Name:      DefaultDorisBeStoragePVName,
 							PersistentVolumeClaimSpec: corev1.PersistentVolumeClaimSpec{
+								AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 								StorageClassName: &DorisStorgeClass,
-								Resources:        becluster.Resource.ResourceRequirements,
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										"storage": becluster.Resource.ResourceRequirements.Requests["storage"],
+									},
+								},
 							},
 						},
 					},
 				},
+			},
+			AdminUser: &dov1.AdminUser{
+				Name: userName,
 			},
 		},
 	}
