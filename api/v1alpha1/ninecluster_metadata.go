@@ -167,6 +167,13 @@ var NineDatahouseWithOLAPClusterset = []ClusterInfo{
 				PullPolicy: "IfNotPresent",
 			},
 		},
+		Resource: ResourceConfig{
+			ResourceRequirements: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					"storage": *resource.NewQuantity(int64(20*1024*1024*1024), resource.BinarySI),
+				},
+			},
+		},
 	},
 	{
 		Type:    DorisBEClusterType,
