@@ -149,7 +149,7 @@ var NineDatahouseWithOLAPClusterset = []ClusterInfo{
 		Configs: ClusterConfig{
 			Auth: AuthConfig{
 				UserName: "root",
-				Password: "root",
+				Password: "",
 			},
 		},
 		ClusterRefs: []ClusterType{
