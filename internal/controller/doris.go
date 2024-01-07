@@ -68,7 +68,8 @@ func (r *NineClusterReconciler) constructDorisCluster(ctx context.Context, clust
 		logger.Error(err, "invalid parameters,please supply valid fe and be info!")
 		return nil, err
 	}
-	DorisStorgeClass := GetStorageClassName(&doris)
+	feDorisStorgeClass := GetStorageClassName(fecluster)
+	beDorisStorgeClass := GetStorageClassName(becluster)
 	replicas := int32(3)
 	userName, password := r.getAdminUserInfo(cluster, doris)
 	DorisDesired := &dov1.DorisCluster{
@@ -85,7 +86,7 @@ func (r *NineClusterReconciler) constructDorisCluster(ctx context.Context, clust
 							Name:      DefaultDorisFeStoragePVName,
 							PersistentVolumeClaimSpec: corev1.PersistentVolumeClaimSpec{
 								AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-								StorageClassName: &DorisStorgeClass,
+								StorageClassName: &feDorisStorgeClass,
 								Resources: corev1.ResourceRequirements{
 									Requests: corev1.ResourceList{
 										"storage": fecluster.Resource.ResourceRequirements.Requests["storage"],
@@ -106,7 +107,7 @@ func (r *NineClusterReconciler) constructDorisCluster(ctx context.Context, clust
 							Name:      DefaultDorisBeStoragePVName,
 							PersistentVolumeClaimSpec: corev1.PersistentVolumeClaimSpec{
 								AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-								StorageClassName: &DorisStorgeClass,
+								StorageClassName: &beDorisStorgeClass,
 								Resources: corev1.ResourceRequirements{
 									Requests: corev1.ResourceList{
 										"storage": becluster.Resource.ResourceRequirements.Requests["storage"],
