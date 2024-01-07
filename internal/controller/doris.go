@@ -20,7 +20,9 @@ import (
 const (
 	DorisResourceNameSuffix        = "-doris"
 	DefaultDorisBeStorageMountPath = "/opt/apache-doris/be/storage"
+	DefaultDorisFeStorageMountPath = "/opt/apache-doris/fe/doris-meta "
 	DefaultDorisBeStoragePVName    = "bestorage"
+	DefaultDorisFeStoragePVName    = "femeta"
 	DefaultDorisAdminUser          = "root"
 	DefaultDorisAdminPassword      = ""
 )
@@ -77,6 +79,21 @@ func (r *NineClusterReconciler) constructDorisCluster(ctx context.Context, clust
 				BaseSpec: dov1.BaseSpec{
 					Replicas: &replicas,
 					Image:    fecluster.Configs.Image.Repository + ":" + fecluster.Configs.Image.Tag,
+					PersistentVolumes: []dov1.PersistentVolume{
+						{
+							MountPath: DefaultDorisFeStorageMountPath,
+							Name:      DefaultDorisFeStoragePVName,
+							PersistentVolumeClaimSpec: corev1.PersistentVolumeClaimSpec{
+								AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+								StorageClassName: &DorisStorgeClass,
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										"storage": fecluster.Resource.ResourceRequirements.Requests["storage"],
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			BeSpec: &dov1.BeSpec{
