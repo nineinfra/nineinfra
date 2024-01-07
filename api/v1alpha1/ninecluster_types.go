@@ -42,6 +42,8 @@ const (
 	NineClusterTypeBatch  NineClusterType = "batch"
 )
 
+var NineClusterTypeSupportedList = []NineClusterType{NineClusterTypeStream, NineClusterTypeBatch}
+
 const (
 	StateAvailable = "Available"
 	StateDeploying = "Deploying"

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -71,6 +72,15 @@ func CheckOlapSupported(c ninev1alpha1.ClusterType) bool {
 	return false
 }
 
+func CheckNineClusterTypeSupported(c ninev1alpha1.NineClusterType) bool {
+	for _, v := range ninev1alpha1.NineClusterTypeSupportedList {
+		if c == v {
+			return true
+		}
+	}
+	return false
+}
+
 func GetOlapClusterType(cluster *ninev1alpha1.NineCluster) (ninev1alpha1.ClusterType, error) {
 	if value, ok := cluster.Spec.Features[ninev1alpha1.NineClusterFeatureOlap]; ok {
 		c := ninev1alpha1.ClusterType(value)
@@ -79,4 +89,44 @@ func GetOlapClusterType(cluster *ninev1alpha1.NineCluster) (ninev1alpha1.Cluster
 		}
 	}
 	return "", errors.New("no supported olap found")
+}
+
+func FillNineClusterType(cluster *ninev1alpha1.NineCluster) error {
+	if cluster.Spec.Type == "" {
+		cluster.Spec.Type = ninev1alpha1.NineClusterTypeBatch
+	} else {
+		if !CheckNineClusterTypeSupported(cluster.Spec.Type) {
+			return errors.New(fmt.Sprintf("nine cluster type:%s not supported", cluster.Spec.Type))
+		}
+	}
+	return nil
+}
+
+func FillClustersInfo(cluster *ninev1alpha1.NineCluster) error {
+	olap, _ := GetOlapClusterType(cluster)
+	if cluster.Spec.ClusterSet == nil {
+		if olap == "" {
+			cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseClusterset
+		} else {
+			cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseWithOLAPClusterset
+		}
+	} else {
+		//check kyuubi,spark/flink,metastore and database
+		var userClusterTypes = map[ninev1alpha1.ClusterType]bool{}
+		for _, v := range cluster.Spec.ClusterSet {
+			userClusterTypes[v.Type] = true
+		}
+		var defaultClusterSet []ninev1alpha1.ClusterInfo
+		if olap == "" {
+			defaultClusterSet = ninev1alpha1.NineDatahouseClusterset
+		} else {
+			defaultClusterSet = ninev1alpha1.NineDatahouseWithOLAPClusterset
+		}
+		for _, v := range defaultClusterSet {
+			if _, ok := userClusterTypes[v.Type]; !ok {
+				cluster.Spec.ClusterSet = append(cluster.Spec.ClusterSet, v)
+			}
+		}
+	}
+	return nil
 }
