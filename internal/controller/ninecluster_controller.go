@@ -96,14 +96,10 @@ func (r *NineClusterReconciler) reconcileDatabaseCluster(ctx context.Context, cl
 }
 
 func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster *ninev1alpha1.NineCluster, logger logr.Logger) {
-	if cluster.Spec.ClusterSet == nil {
-		_, err := GetOlapClusterType(cluster)
-		if err != nil {
-			cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseClusterset
-		} else {
-			cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseWithOLAPClusterset
-		}
+	if err := FillClustersInfo(cluster); err != nil {
+		logger.Error(err, "Failed to fill clusters' info")
 	}
+
 	//Todo,add check if the cluster running?
 	for _, v := range cluster.Spec.ClusterSet {
 		switch v.Type {
@@ -152,8 +148,8 @@ func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster
 }
 
 func (r *NineClusterReconciler) reconcileClusters(ctx context.Context, cluster *ninev1alpha1.NineCluster, logger logr.Logger) error {
-	if cluster.Spec.Type == "" {
-		cluster.Spec.Type = ninev1alpha1.NineClusterTypeBatch
+	if err := FillNineClusterType(cluster); err != nil {
+		return err
 	}
 	switch cluster.Spec.Type {
 	case ninev1alpha1.NineClusterTypeBatch:
