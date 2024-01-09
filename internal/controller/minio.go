@@ -162,9 +162,13 @@ func (r *NineClusterReconciler) reconcileMinioTenantConfigSecret(ctx context.Con
 		"config.env": []byte(strData),
 	}
 	desiredSecret := &corev1.Secret{
-		ObjectMeta: NineObjectMeta(cluster),
-		Type:       corev1.SecretTypeOpaque,
-		Data:       secretData,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      MinioConfigName(cluster),
+			Namespace: cluster.Namespace,
+			Labels:    NineConstructLabels(cluster),
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: secretData,
 	}
 
 	if err := ctrl.SetControllerReference(cluster, desiredSecret, r.Scheme); err != nil {
@@ -237,10 +241,11 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 		ObjectMeta: NineObjectMeta(cluster),
 		Spec: miniov2.TenantSpec{
 			Configuration: &corev1.LocalObjectReference{
-				Name: NineResourceName(cluster),
+				Name: MinioConfigName(cluster),
 			},
 			RequestAutoCert: &tmpBool,
-			Image:           "minio/minio:" + minio.Version,
+			Image:           minio.Configs.Image.Repository + ":" + minio.Configs.Image.Tag,
+			ImagePullPolicy: corev1.PullPolicy(minio.Configs.Image.PullPolicy),
 			Pools: []miniov2.Pool{
 				{
 					//Todo,this value should be loaded automatically

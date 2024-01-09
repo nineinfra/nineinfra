@@ -14,7 +14,19 @@ func NineResourceName(cluster *ninev1alpha1.NineCluster, suffixs ...string) stri
 }
 
 func MinioNewUserName(cluster *ninev1alpha1.NineCluster) string {
-	return cluster.Name + ninev1alpha1.ClusterNameSuffix + "-user"
+	return cluster.Name + ninev1alpha1.ClusterNameSuffix + DefaultMinioNameSuffix + "-user"
+}
+
+func MinioConfigName(cluster *ninev1alpha1.NineCluster) string {
+	return cluster.Name + ninev1alpha1.ClusterNameSuffix + DefaultMinioNameSuffix + "-config"
+}
+
+func PGInitDBUserSecretName(cluster *ninev1alpha1.NineCluster) string {
+	return cluster.Name + ninev1alpha1.ClusterNameSuffix + PGResourceNameSuffix + "-user"
+}
+
+func PGSuperUserSecretName(cluster *ninev1alpha1.NineCluster) string {
+	return cluster.Name + ninev1alpha1.ClusterNameSuffix + PGResourceNameSuffix + "-superuser"
 }
 
 func NineConstructLabels(cluster *ninev1alpha1.NineCluster) map[string]string {

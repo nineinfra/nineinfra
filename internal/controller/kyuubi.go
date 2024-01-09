@@ -27,6 +27,7 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 		LogError(ctx, err, "get metastore exposed info failed")
 		return nil, err
 	}
+
 	tmpKyuubiConf := map[string]string{
 		"kyuubi.kubernetes.namespace": cluster.Namespace,
 	}

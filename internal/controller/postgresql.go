@@ -19,11 +19,19 @@ import (
 )
 
 const (
-	PGDataBase           = "hive"
-	PGDataBaseUser       = "hive"
-	PGDataBasePassword   = "hive"
-	PGResourceNameSuffix = "-pg"
+	PGInitDBName     = "hive"
+	PGInitDBUserName = "hive"
+	PGInitDBPassword = "hive"
 )
+
+func getPGSuperUserNameAndPassword(pg ninev1alpha1.ClusterInfo) (string, string) {
+	if pg.Configs.Auth.AuthType == ninev1alpha1.ClusterAuthTypeSimple {
+		if pg.Configs.Auth.UserName != "" && pg.Configs.Auth.Password != "" {
+			return pg.Configs.Auth.UserName, pg.Configs.Auth.Password
+		}
+	}
+	return DefaultPGSuperUserName, DefaultPGSuperUserPassword
+}
 
 func pgResourceName(cluster *ninev1alpha1.NineCluster) string {
 	return NineResourceName(cluster, PGResourceNameSuffix)
@@ -34,7 +42,7 @@ func pgRWSvcName(cluster *ninev1alpha1.NineCluster) string {
 }
 
 func pgJDBCConnetionURL(ctx context.Context, cluster *ninev1alpha1.NineCluster) string {
-	return "jdbc:postgresql://" + pgRWSvcName(cluster) + ":5432/" + PGDataBase
+	return "jdbc:postgresql://" + pgRWSvcName(cluster) + ":5432/" + PGInitDBName
 }
 
 func (r *NineClusterReconciler) getDatabaseExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (ninev1alpha1.DatabaseCluster, error) {
@@ -57,20 +65,56 @@ func (r *NineClusterReconciler) getDatabaseExposedInfo(ctx context.Context, clus
 	LogInfo(ctx, "Get database exposed info successfully!")
 	dbc := ninev1alpha1.DatabaseCluster{}
 	dbc.DbType = ninev1alpha1.DbTypePostgres
-	dbc.UserName = PGDataBaseUser
-	dbc.Password = PGDataBasePassword
+	dbc.UserName = PGInitDBUserName
+	dbc.Password = PGInitDBPassword
 	dbc.ConnectionUrl = pgJDBCConnetionURL(ctx, cluster)
 	return dbc, nil
 }
 
-func (r *NineClusterReconciler) reconcilePGDBUserSecret(ctx context.Context, cluster *ninev1alpha1.NineCluster, database ninev1alpha1.ClusterInfo) error {
+func (r *NineClusterReconciler) reconcilePGInitDBUserSecret(ctx context.Context, cluster *ninev1alpha1.NineCluster, database ninev1alpha1.ClusterInfo) error {
 	secretData := map[string][]byte{
-		"username": []byte(PGDataBaseUser),
-		"password": []byte(PGDataBasePassword),
+		"username": []byte(PGInitDBUserName),
+		"password": []byte(PGInitDBPassword),
 	}
 	desiredSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      pgResourceName(cluster),
+			Name:      PGInitDBUserSecretName(cluster),
+			Namespace: cluster.Namespace,
+			Labels:    NineConstructLabels(cluster),
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: secretData,
+	}
+
+	if err := ctrl.SetControllerReference(cluster, desiredSecret, r.Scheme); err != nil {
+		return err
+	}
+
+	existingSecret := &corev1.Secret{}
+
+	err := r.Get(ctx, client.ObjectKeyFromObject(desiredSecret), existingSecret)
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	if errors.IsNotFound(err) {
+		if err := r.Create(ctx, desiredSecret); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *NineClusterReconciler) reconcilePGSuperUserSecret(ctx context.Context, cluster *ninev1alpha1.NineCluster, database ninev1alpha1.ClusterInfo) error {
+	superUserName, superUserPassword := getPGSuperUserNameAndPassword(database)
+	secretData := map[string][]byte{
+		"username": []byte(superUserName),
+		"password": []byte(superUserPassword),
+	}
+	desiredSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      PGSuperUserSecretName(cluster),
 			Namespace: cluster.Namespace,
 			Labels:    NineConstructLabels(cluster),
 		},
@@ -121,11 +165,14 @@ func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster 
 					"host all all 0.0.0.0/0 trust",
 				},
 			},
+			SuperuserSecret: &cnpgv1.LocalObjectReference{
+				Name: PGSuperUserSecretName(cluster),
+			},
 			Bootstrap: &cnpgv1.BootstrapConfiguration{
 				InitDB: &cnpgv1.BootstrapInitDB{
-					Database: PGDataBase,
+					Database: PGInitDBName,
 					Secret: &cnpgv1.LocalObjectReference{
-						Name: pgResourceName(cluster),
+						Name: PGInitDBUserSecretName(cluster),
 					},
 				},
 			},
@@ -140,11 +187,18 @@ func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster 
 }
 
 func (r *NineClusterReconciler) reconcilePGCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, pg ninev1alpha1.ClusterInfo, logger logr.Logger) error {
-	err := r.reconcilePGDBUserSecret(ctx, cluster, pg)
+	err := r.reconcilePGInitDBUserSecret(ctx, cluster, pg)
 	if err != nil {
-		logger.Error(err, "Failed to reconcilePGDBUserSecret")
+		logger.Error(err, "Failed to reconcilePGInitDBUserSecret")
 		return err
 	}
+	
+	err = r.reconcilePGSuperUserSecret(ctx, cluster, pg)
+	if err != nil {
+		logger.Error(err, "Failed to reconcilePGSuperUserSecret")
+		return err
+	}
+
 	desiredPG, err := r.constructPGCluster(ctx, cluster, pg)
 	if err != nil {
 		logger.Error(err, "Failed to constructPGCluster")
