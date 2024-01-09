@@ -98,6 +98,7 @@ func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, 
 				continue
 			}
 			if !exists {
+				LogInfo(ctx, fmt.Sprintf("Bucket %s is not exist in minio,will create it", bucket))
 				err = mc.MakeBucket(ctx, bucket, miniov7.MakeBucketOptions{})
 				if err != nil {
 					LogInfo(ctx, err.Error())

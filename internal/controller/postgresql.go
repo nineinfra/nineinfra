@@ -2,9 +2,11 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"net/url"
 	"time"
 
 	poversioned "github.com/cloudnative-pg/client/clientset/versioned"
@@ -43,6 +45,30 @@ func pgRWSvcName(cluster *ninev1alpha1.NineCluster) string {
 
 func pgJDBCConnetionURL(ctx context.Context, cluster *ninev1alpha1.NineCluster) string {
 	return "jdbc:postgresql://" + pgRWSvcName(cluster) + ":5432/" + PGInitDBName
+}
+
+func buildPGUri(username string, password string, host string, dbname string) string {
+	postgresURI := url.URL{
+		Scheme: "postgresql",
+		User:   url.UserPassword(username, password),
+		Host:   host,
+		Path:   dbname,
+	}
+
+	return postgresURI.String()
+}
+
+func buildPGJdbc(username string, password string, host string, dbname string) string {
+	jdbcURI := &url.URL{
+		Scheme: "jdbc:postgresql",
+		Host:   host,
+		Path:   dbname,
+	}
+	q := jdbcURI.Query()
+	q.Set("user", username)
+	q.Set("password", password)
+	jdbcURI.RawQuery = q.Encode()
+	return jdbcURI.String()
 }
 
 func (r *NineClusterReconciler) getDatabaseExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (ninev1alpha1.DatabaseCluster, error) {
@@ -108,9 +134,23 @@ func (r *NineClusterReconciler) reconcilePGInitDBUserSecret(ctx context.Context,
 
 func (r *NineClusterReconciler) reconcilePGSuperUserSecret(ctx context.Context, cluster *ninev1alpha1.NineCluster, database ninev1alpha1.ClusterInfo) error {
 	superUserName, superUserPassword := getPGSuperUserNameAndPassword(database)
-	secretData := map[string][]byte{
-		"username": []byte(superUserName),
-		"password": []byte(superUserPassword),
+	dbname := "*"
+	secretData := map[string]string{
+		"username": superUserName,
+		"password": superUserPassword,
+		"user":     superUserName,
+		"dbname":   dbname,
+		"host":     pgRWSvcName(cluster),
+		"port":     fmt.Sprintf("%d", DefaultPGServerPort),
+		"pgpass": fmt.Sprintf(
+			"%v:%v:%v:%v:%v\n",
+			pgRWSvcName(cluster),
+			DefaultPGServerPort,
+			dbname,
+			superUserName,
+			superUserPassword),
+		"uri":      buildPGUri(superUserName, superUserPassword, pgRWSvcName(cluster), dbname),
+		"jdbc-uri": buildPGJdbc(superUserName, superUserPassword, pgRWSvcName(cluster), dbname),
 	}
 	desiredSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -118,8 +158,8 @@ func (r *NineClusterReconciler) reconcilePGSuperUserSecret(ctx context.Context, 
 			Namespace: cluster.Namespace,
 			Labels:    NineConstructLabels(cluster),
 		},
-		Type: corev1.SecretTypeOpaque,
-		Data: secretData,
+		Type:       corev1.SecretTypeBasicAuth,
+		StringData: secretData,
 	}
 
 	if err := ctrl.SetControllerReference(cluster, desiredSecret, r.Scheme); err != nil {
@@ -144,6 +184,7 @@ func (r *NineClusterReconciler) reconcilePGSuperUserSecret(ctx context.Context, 
 
 func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, pg ninev1alpha1.ClusterInfo) (*cnpgv1.Cluster, error) {
 	PGStorgeClass := GetStorageClassName(&pg)
+	enableSupseruserAccess := true
 	PGDesired := &cnpgv1.Cluster{
 		ObjectMeta: NineObjectMeta(cluster, PGResourceNameSuffix),
 		Spec: cnpgv1.ClusterSpec{
@@ -168,6 +209,7 @@ func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster 
 			SuperuserSecret: &cnpgv1.LocalObjectReference{
 				Name: PGSuperUserSecretName(cluster),
 			},
+			EnableSuperuserAccess: &enableSupseruserAccess,
 			Bootstrap: &cnpgv1.BootstrapConfiguration{
 				InitDB: &cnpgv1.BootstrapInitDB{
 					Database: PGInitDBName,
@@ -192,7 +234,7 @@ func (r *NineClusterReconciler) reconcilePGCluster(ctx context.Context, cluster 
 		logger.Error(err, "Failed to reconcilePGInitDBUserSecret")
 		return err
 	}
-	
+
 	err = r.reconcilePGSuperUserSecret(ctx, cluster, pg)
 	if err != nil {
 		logger.Error(err, "Failed to reconcilePGSuperUserSecret")
