@@ -119,13 +119,13 @@ func (r *NineClusterReconciler) reconcilePGInitDBUserSecret(ctx context.Context,
 	existingSecret := &corev1.Secret{}
 
 	err := r.Get(ctx, client.ObjectKeyFromObject(desiredSecret), existingSecret)
-	if err != nil && !errors.IsNotFound(err) {
-		return err
-	}
-
-	if errors.IsNotFound(err) {
-		if err := r.Create(ctx, desiredSecret); err != nil {
+	if err != nil {
+		if !errors.IsNotFound(err) {
 			return err
+		} else {
+			if err := r.Create(ctx, desiredSecret); err != nil && !errors.IsAlreadyExists(err) {
+				return err
+			}
 		}
 	}
 
@@ -169,13 +169,13 @@ func (r *NineClusterReconciler) reconcilePGSuperUserSecret(ctx context.Context, 
 	existingSecret := &corev1.Secret{}
 
 	err := r.Get(ctx, client.ObjectKeyFromObject(desiredSecret), existingSecret)
-	if err != nil && !errors.IsNotFound(err) {
-		return err
-	}
-
-	if errors.IsNotFound(err) {
-		if err := r.Create(ctx, desiredSecret); err != nil {
+	if err != nil {
+		if !errors.IsNotFound(err) {
 			return err
+		} else {
+			if err := r.Create(ctx, desiredSecret); err != nil && !errors.IsAlreadyExists(err) {
+				return err
+			}
 		}
 	}
 

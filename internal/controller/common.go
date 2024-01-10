@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+// GenUniqueName4Cluster format: DefaultGloableNameSuffix-namespace-ninename-clustertype
+func GenUniqueName4Cluster(cluster *ninev1alpha1.NineCluster, clusterType ninev1alpha1.ClusterType) string {
+	return fmt.Sprintf("%s-%s-%s-%s", DefaultGloableNameSuffix, cluster.Namespace, cluster.Name, clusterType)
+}
+
 func NineResourceName(cluster *ninev1alpha1.NineCluster, suffixs ...string) string {
 	return cluster.Name + ninev1alpha1.ClusterNameSuffix + strings.Join(suffixs, "-")
 }

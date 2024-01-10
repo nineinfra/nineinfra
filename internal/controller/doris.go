@@ -148,7 +148,7 @@ func (r *NineClusterReconciler) reconcileDorisCluster(ctx context.Context, clust
 		return err
 	}
 
-	_, err = dc.DorisV1().DorisClusters(cluster.Namespace).Get(context.TODO(), NineResourceName(cluster), metav1.GetOptions{})
+	_, err = dc.DorisV1().DorisClusters(cluster.Namespace).Get(context.TODO(), NineResourceName(cluster, DorisResourceNameSuffix), metav1.GetOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
 		logger.Error(err, fmt.Sprintf("doris cluster get failed for %s", NineResourceName(cluster)))
 		return err

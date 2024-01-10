@@ -19,6 +19,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -90,18 +91,19 @@ func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, 
 	condition := make(chan struct{})
 	go func() {
 		for {
-			LogInfoInterval(ctx, 5, "Try to create minio bucket...")
+			LogInfoInterval(ctx, 5, fmt.Sprintf("Check minio bucket %s exists...", bucket))
 			exists, err := mc.BucketExists(ctx, bucket)
 			if err != nil {
-				LogInfo(ctx, err.Error())
+				LogInfo(ctx, fmt.Sprintf("BucketExists bucket:%s,err:%s,minioInfo:%v", bucket, err.Error(), minioInfo))
 				time.Sleep(time.Second)
 				continue
 			}
+			LogInfoInterval(ctx, 5, fmt.Sprintf("Try to create minio bucket %s...", bucket))
 			if !exists {
 				LogInfo(ctx, fmt.Sprintf("Bucket %s is not exist in minio,will create it", bucket))
 				err = mc.MakeBucket(ctx, bucket, miniov7.MakeBucketOptions{})
 				if err != nil {
-					LogInfo(ctx, err.Error())
+					LogInfo(ctx, fmt.Sprintf("MakeBucket bucket:%s,err:%s,minioInfo:%v", bucket, err.Error(), minioInfo))
 					time.Sleep(time.Second)
 					continue
 				}
@@ -112,10 +114,19 @@ func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, 
 		}
 	}()
 	<-condition
-	_, err = mc.PutObject(ctx, bucket, folder, nil, 0, miniov7.PutObjectOptions{})
+	_, err = mc.StatObject(ctx, bucket, folder, miniov7.StatObjectOptions{})
 	if err != nil {
-		return err
+		if !strings.Contains(err.Error(), MinioErrorNotExist) {
+			LogInfo(ctx, fmt.Sprintf("StateObject with unknown err,bucket %s object %s err %s!", bucket, folder, err.Error()))
+			return err
+		} else {
+			_, err = mc.PutObject(ctx, bucket, folder, nil, 0, miniov7.PutObjectOptions{})
+			if err != nil {
+				return err
+			}
+		}
 	}
+
 	LogInfo(ctx, "Reconcile minio bucket and folder successfully!")
 	return nil
 }
