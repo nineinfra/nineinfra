@@ -2,11 +2,13 @@ package controller
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"net/url"
+	"strings"
 	"time"
 
 	poversioned "github.com/cloudnative-pg/client/clientset/versioned"
@@ -43,11 +45,15 @@ func pgRWSvcName(cluster *ninev1alpha1.NineCluster) string {
 	return pgResourceName(cluster) + "-rw"
 }
 
-func pgJDBCConnetionURL(ctx context.Context, cluster *ninev1alpha1.NineCluster) string {
+func pgRWSvcNameInCluster(cluster *ninev1alpha1.NineCluster, svcName string) string {
+	return fmt.Sprintf("%s.%s.svc", svcName, cluster.Namespace)
+}
+
+func pgJDBCInitDBConnetionURL(cluster *ninev1alpha1.NineCluster) string {
 	return "jdbc:postgresql://" + pgRWSvcName(cluster) + ":5432/" + PGInitDBName
 }
 
-func buildPGUri(username string, password string, host string, dbname string) string {
+func (r *NineClusterReconciler) BuildPGUri(username string, password string, host string, dbname string) string {
 	postgresURI := url.URL{
 		Scheme: "postgresql",
 		User:   url.UserPassword(username, password),
@@ -58,7 +64,22 @@ func buildPGUri(username string, password string, host string, dbname string) st
 	return postgresURI.String()
 }
 
-func buildPGJdbc(username string, password string, host string, dbname string) string {
+func (r *NineClusterReconciler) BuildPGJdbcWithCluster(cluster *ninev1alpha1.NineCluster, username string, password string, dbname string) string {
+	jdbcURI := &url.URL{
+		Scheme: "jdbc:postgresql",
+		Host:   pgRWSvcName(cluster),
+		Path:   dbname,
+	}
+	if username != "" && password != "" {
+		q := jdbcURI.Query()
+		q.Set("user", username)
+		q.Set("password", password)
+		jdbcURI.RawQuery = q.Encode()
+	}
+	return jdbcURI.String()
+}
+
+func (r *NineClusterReconciler) BuildPGJdbc(username string, password string, host string, dbname string) string {
 	jdbcURI := &url.URL{
 		Scheme: "jdbc:postgresql",
 		Host:   host,
@@ -71,14 +92,15 @@ func buildPGJdbc(username string, password string, host string, dbname string) s
 	return jdbcURI.String()
 }
 
-func (r *NineClusterReconciler) getDatabaseExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (ninev1alpha1.DatabaseCluster, error) {
+func (r *NineClusterReconciler) getPGRWSvcNameWithSync(ctx context.Context, cluster *ninev1alpha1.NineCluster) string {
 	condition := make(chan struct{})
+	svcName := pgRWSvcName(cluster)
 	dbSvc := &corev1.Service{}
 	go func(svc *corev1.Service) {
 		for {
 			//Todo, dead loop here can be broken manually?
 			LogInfoInterval(ctx, 5, "Try to get db service...")
-			if err := r.Get(ctx, types.NamespacedName{Name: pgRWSvcName(cluster), Namespace: cluster.Namespace}, svc); err != nil && errors.IsNotFound(err) {
+			if err := r.Get(ctx, types.NamespacedName{Name: svcName, Namespace: cluster.Namespace}, svc); err != nil && errors.IsNotFound(err) {
 				time.Sleep(time.Second)
 				continue
 			}
@@ -88,12 +110,56 @@ func (r *NineClusterReconciler) getDatabaseExposedInfo(ctx context.Context, clus
 	}(dbSvc)
 
 	<-condition
-	LogInfo(ctx, "Get database exposed info successfully!")
+	LogInfo(ctx, "Get database service successfully!")
+	return pgRWSvcNameInCluster(cluster, svcName)
+}
+
+func (r *NineClusterReconciler) executeSql(ctx context.Context, cluster *ninev1alpha1.NineCluster, dbUser string, dbPWD string, dbName string, sqlStr string, sqlArgs ...any) error {
+	svcName := r.getPGRWSvcNameWithSync(ctx, cluster)
+
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", svcName, DefaultPGServerPort, dbUser, dbPWD, dbName)
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	_, err = db.Exec(sqlStr, sqlArgs...)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *NineClusterReconciler) createDatabase(ctx context.Context, cluster *ninev1alpha1.NineCluster, dbUser string, dbPWD string, dbName string) error {
+	svcName := r.getPGRWSvcNameWithSync(ctx, cluster)
+
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s sslmode=disable", svcName, DefaultPGServerPort, "postgres", DefaultPGSuperUserPassword)
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	_, err = db.Exec("CREATE USER " + dbUser + " WITH PASSWORD '" + dbPWD + "'")
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
+		return err
+	}
+	_, err = db.Exec("CREATE DATABASE " + dbName + " WITH OWNER " + dbUser)
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
+		return err
+	}
+	return nil
+}
+
+func (r *NineClusterReconciler) getDatabaseExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (ninev1alpha1.DatabaseCluster, error) {
+	_ = r.getPGRWSvcNameWithSync(ctx, cluster)
 	dbc := ninev1alpha1.DatabaseCluster{}
 	dbc.DbType = ninev1alpha1.DbTypePostgres
 	dbc.UserName = PGInitDBUserName
 	dbc.Password = PGInitDBPassword
-	dbc.ConnectionUrl = pgJDBCConnetionURL(ctx, cluster)
+	dbc.ConnectionUrl = pgJDBCInitDBConnetionURL(cluster)
 	return dbc, nil
 }
 
@@ -149,8 +215,8 @@ func (r *NineClusterReconciler) reconcilePGSuperUserSecret(ctx context.Context, 
 			dbname,
 			superUserName,
 			superUserPassword),
-		"uri":      buildPGUri(superUserName, superUserPassword, pgRWSvcName(cluster), dbname),
-		"jdbc-uri": buildPGJdbc(superUserName, superUserPassword, pgRWSvcName(cluster), dbname),
+		"uri":      r.BuildPGUri(superUserName, superUserPassword, pgRWSvcName(cluster), dbname),
+		"jdbc-uri": r.BuildPGJdbc(superUserName, superUserPassword, pgRWSvcName(cluster), dbname),
 	}
 	desiredSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

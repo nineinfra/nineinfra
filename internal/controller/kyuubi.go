@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -9,12 +11,52 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"strconv"
+	"strings"
 
 	kov1alpha1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
 	koversioned "github.com/nineinfra/kyuubi-operator/client/clientset/versioned"
 	koscheme "github.com/nineinfra/kyuubi-operator/client/clientset/versioned/scheme"
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 )
+
+func (r *NineClusterReconciler) getAuthConfig(kyuubi ninev1alpha1.ClusterInfo) ninev1alpha1.AuthConfig {
+	if kyuubi.Configs.Auth.AuthType == "" {
+		return ninev1alpha1.AuthConfig{
+			AuthType: ninev1alpha1.ClusterAuthTypeJDBC,
+			UserName: DefaultKyuubiAuthUserName,
+			Password: DefaultKyuubiAuthPassword,
+		}
+	}
+	return kyuubi.Configs.Auth
+}
+
+func (r *NineClusterReconciler) configJdbcAuth(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo, authConfig ninev1alpha1.AuthConfig) error {
+	if authConfig.AuthType == ninev1alpha1.ClusterAuthTypeJDBC {
+		dbUser := DefaultKyuubiAuthUserName
+		dbPassword := DefaultKyuubiAuthPassword
+		dbName := DefaultKyuubiAuthDatabase
+		err := r.createDatabase(ctx, cluster, dbUser, dbPassword, dbName)
+		if err != nil {
+			return err
+		}
+
+		sqlStr := `CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY,passwd TEXT)`
+		err = r.executeSql(ctx, cluster, dbUser, dbPassword, dbName, sqlStr)
+		if err != nil {
+			return err
+		}
+		sqlStr = `INSERT INTO users (username, passwd) VALUES ($1, $2)`
+		passwdMD5 := md5.New()
+		passwdMD5.Write([]byte(fmt.Sprintf("%s%s", DefualtPasswordMD5Salt, authConfig.Password)))
+		passwd := hex.EncodeToString(passwdMD5.Sum(nil))
+		sqlArgs := []any{authConfig.UserName, passwd}
+		err = r.executeSql(ctx, cluster, dbUser, dbPassword, dbName, sqlStr, sqlArgs...)
+		if err != nil && !strings.Contains(err.Error(), PGErrorDuplicateKey) {
+			return err
+		}
+	}
+	return nil
+}
 
 func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (*kov1alpha1.KyuubiCluster, error) {
 	minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
@@ -27,10 +69,30 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 		LogError(ctx, err, "get metastore exposed info failed")
 		return nil, err
 	}
-
-	tmpKyuubiConf := map[string]string{
-		"kyuubi.kubernetes.namespace": cluster.Namespace,
+	authConfig := r.getAuthConfig(kyuubi)
+	err = r.configJdbcAuth(ctx, cluster, kyuubi, authConfig)
+	if err != nil {
+		LogError(ctx, err, "config kyuubi auth failed")
+		return nil, err
 	}
+
+	var tmpKyuubiConf map[string]string
+	if authConfig.AuthType == ninev1alpha1.ClusterAuthTypeJDBC {
+		tmpKyuubiConf = map[string]string{
+			"kyuubi.kubernetes.namespace":             cluster.Namespace,
+			"kyuubi.authentication":                   "JDBC",
+			"kyuubi.authentication.jdbc.driver.class": "org.postgresql.Driver",
+			"kyuubi.authentication.jdbc.url":          r.BuildPGJdbcWithCluster(cluster, "", "", DefaultKyuubiAuthDatabase),
+			"kyuubi.authentication.jdbc.user":         DefaultKyuubiAuthUserName,
+			"kyuubi.authentication.jdbc.password":     DefaultKyuubiAuthPassword,
+			"kyuubi.authentication.jdbc.query":        `SELECT 1 FROM users WHERE username=${user} AND passwd=MD5(CONCAT('nineinfra',${password}))`,
+		}
+	} else {
+		tmpKyuubiConf = map[string]string{
+			"kyuubi.kubernetes.namespace": cluster.Namespace,
+		}
+	}
+
 	for k, v := range kyuubi.Configs.Conf {
 		tmpKyuubiConf[k] = v
 	}
@@ -55,8 +117,8 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.claimName"] = "OnDemand"
 		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.storageClass"] = GetStorageClassName(&kyuubi)
 		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit"] = DefaultShuffleDiskSize
-		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.path"] = DefaultShuffleDiskMountPath
-		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.readOnly"] = "false"
+		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.path"] = DefaultShuffleDiskMountPath
+		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.readOnly"] = "false"
 	}
 
 	LogInfo(ctx, fmt.Sprintf("sparkConf:%v\n", tmpSparkConf))

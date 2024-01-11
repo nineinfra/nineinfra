@@ -5,10 +5,12 @@ const (
 	DefaultStorageClass         = "nineinfra-default"
 	DefaultShuffleDiskSize      = "200Gi"
 	DefaultShuffleDiskMountPath = "/opt/spark/mnt/dir1"
+	DefualtPasswordMD5Salt      = "nineinfra"
 )
 
 const (
 	DefaultMinioNameSuffix = "-minio"
+	MinioErrorNotExist     = "The specified key does not exist"
 )
 
 const (
@@ -16,8 +18,11 @@ const (
 	DefaultPGSuperUserName     = "postgres"
 	DefaultPGSuperUserPassword = "postgres"
 	DefaultPGServerPort        = 5432
+	PGErrorDuplicateKey        = "duplicate key value violates unique constraint"
 )
 
 const (
-	MinioErrorNotExist = "The specified key does not exist"
+	DefaultKyuubiAuthUserName = "kyuubi"
+	DefaultKyuubiAuthPassword = "kyuubi"
+	DefaultKyuubiAuthDatabase = "kyuubi"
 )
