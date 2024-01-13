@@ -186,6 +186,7 @@ var NineDatahouseWithOLAPClusterset = []ClusterInfo{
 			},
 		},
 		Resource: ResourceConfig{
+			Replicas: 3,
 			ResourceRequirements: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
 					"storage": *resource.NewQuantity(int64(100*1024*1024*1024), resource.BinarySI),

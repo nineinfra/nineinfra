@@ -70,15 +70,22 @@ func (r *NineClusterReconciler) constructDorisCluster(ctx context.Context, clust
 	}
 	feDorisStorgeClass := GetStorageClassName(fecluster)
 	beDorisStorgeClass := GetStorageClassName(becluster)
-	replicas := int32(3)
+	var fereplicas = int32(3)
+	var bereplicas = int32(3)
+	if fecluster.Resource.Replicas != 0 {
+		fereplicas = fecluster.Resource.Replicas
+	}
+	if becluster.Resource.Replicas != 0 {
+		bereplicas = becluster.Resource.Replicas
+	}
 	userName, password := r.getAdminUserInfo(cluster, doris)
 	DorisDesired := &dov1.DorisCluster{
 		ObjectMeta: NineObjectMeta(cluster, DorisResourceNameSuffix),
 		Spec: dov1.DorisClusterSpec{
 			FeSpec: &dov1.FeSpec{
-				ElectionNumber: &replicas,
+				ElectionNumber: &fereplicas,
 				BaseSpec: dov1.BaseSpec{
-					Replicas: &replicas,
+					Replicas: &fereplicas,
 					Image:    fecluster.Configs.Image.Repository + ":" + fecluster.Configs.Image.Tag,
 					PersistentVolumes: []dov1.PersistentVolume{
 						{
@@ -99,7 +106,7 @@ func (r *NineClusterReconciler) constructDorisCluster(ctx context.Context, clust
 			},
 			BeSpec: &dov1.BeSpec{
 				BaseSpec: dov1.BaseSpec{
-					Replicas: &replicas,
+					Replicas: &bereplicas,
 					Image:    becluster.Configs.Image.Repository + ":" + becluster.Configs.Image.Tag,
 					PersistentVolumes: []dov1.PersistentVolume{
 						{
