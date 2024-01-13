@@ -81,6 +81,11 @@ const (
 	NineClusterFeatureDataLake = "data-lake"
 )
 
+const (
+	ClusterAuthTypeSimple = "simple"
+	ClusterAuthTypeJDBC   = "JDBC"
+)
+
 var NineInfraSupportedOlapList = []ClusterType{DorisClusterType}
 
 type DatabaseCluster struct {
@@ -131,7 +136,7 @@ type ImageConfig struct {
 }
 
 type AuthConfig struct {
-	// AuthType. The auth type of the cluster,default:`ldap`.
+	// AuthType. The auth type of the cluster,default:ClusterAuthTypeSimple.
 	// +optional
 	AuthType string `json:"authType,omitempty"`
 	// UserName for the cluster access.

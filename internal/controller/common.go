@@ -9,12 +9,29 @@ import (
 	"strings"
 )
 
+// GenUniqueName4Cluster format: DefaultGloableNameSuffix-namespace-ninename-clustertype
+func GenUniqueName4Cluster(cluster *ninev1alpha1.NineCluster, clusterType ninev1alpha1.ClusterType) string {
+	return fmt.Sprintf("%s-%s-%s-%s", DefaultGloableNameSuffix, cluster.Namespace, cluster.Name, clusterType)
+}
+
 func NineResourceName(cluster *ninev1alpha1.NineCluster, suffixs ...string) string {
 	return cluster.Name + ninev1alpha1.ClusterNameSuffix + strings.Join(suffixs, "-")
 }
 
 func MinioNewUserName(cluster *ninev1alpha1.NineCluster) string {
-	return cluster.Name + ninev1alpha1.ClusterNameSuffix + "-user"
+	return cluster.Name + ninev1alpha1.ClusterNameSuffix + DefaultMinioNameSuffix + "-user"
+}
+
+func MinioConfigName(cluster *ninev1alpha1.NineCluster) string {
+	return cluster.Name + ninev1alpha1.ClusterNameSuffix + DefaultMinioNameSuffix + "-config"
+}
+
+func PGInitDBUserSecretName(cluster *ninev1alpha1.NineCluster) string {
+	return cluster.Name + ninev1alpha1.ClusterNameSuffix + PGResourceNameSuffix + "-user"
+}
+
+func PGSuperUserSecretName(cluster *ninev1alpha1.NineCluster) string {
+	return cluster.Name + ninev1alpha1.ClusterNameSuffix + PGResourceNameSuffix + "-superuser"
 }
 
 func NineConstructLabels(cluster *ninev1alpha1.NineCluster) map[string]string {

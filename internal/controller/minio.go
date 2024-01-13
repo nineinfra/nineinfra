@@ -19,6 +19,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -90,17 +91,19 @@ func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, 
 	condition := make(chan struct{})
 	go func() {
 		for {
-			LogInfoInterval(ctx, 5, "Try to create minio bucket...")
+			LogInfoInterval(ctx, 5, fmt.Sprintf("Check minio bucket %s exists...", bucket))
 			exists, err := mc.BucketExists(ctx, bucket)
 			if err != nil {
-				LogInfo(ctx, err.Error())
+				LogInfo(ctx, fmt.Sprintf("BucketExists bucket:%s,err:%s,minioInfo:%v", bucket, err.Error(), minioInfo))
 				time.Sleep(time.Second)
 				continue
 			}
+			LogInfoInterval(ctx, 5, fmt.Sprintf("Try to create minio bucket %s...", bucket))
 			if !exists {
+				LogInfo(ctx, fmt.Sprintf("Bucket %s is not exist in minio,will create it", bucket))
 				err = mc.MakeBucket(ctx, bucket, miniov7.MakeBucketOptions{})
 				if err != nil {
-					LogInfo(ctx, err.Error())
+					LogInfo(ctx, fmt.Sprintf("MakeBucket bucket:%s,err:%s,minioInfo:%v", bucket, err.Error(), minioInfo))
 					time.Sleep(time.Second)
 					continue
 				}
@@ -111,10 +114,19 @@ func (r *NineClusterReconciler) createMinioBucketAndFolder(ctx context.Context, 
 		}
 	}()
 	<-condition
-	_, err = mc.PutObject(ctx, bucket, folder, nil, 0, miniov7.PutObjectOptions{})
+	_, err = mc.StatObject(ctx, bucket, folder, miniov7.StatObjectOptions{})
 	if err != nil {
-		return err
+		if !strings.Contains(err.Error(), MinioErrorNotExist) {
+			LogInfo(ctx, fmt.Sprintf("StateObject with unknown err,bucket %s object %s err %s!", bucket, folder, err.Error()))
+			return err
+		} else {
+			_, err = mc.PutObject(ctx, bucket, folder, nil, 0, miniov7.PutObjectOptions{})
+			if err != nil {
+				return err
+			}
+		}
 	}
+
 	LogInfo(ctx, "Reconcile minio bucket and folder successfully!")
 	return nil
 }
@@ -162,9 +174,13 @@ func (r *NineClusterReconciler) reconcileMinioTenantConfigSecret(ctx context.Con
 		"config.env": []byte(strData),
 	}
 	desiredSecret := &corev1.Secret{
-		ObjectMeta: NineObjectMeta(cluster),
-		Type:       corev1.SecretTypeOpaque,
-		Data:       secretData,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      MinioConfigName(cluster),
+			Namespace: cluster.Namespace,
+			Labels:    NineConstructLabels(cluster),
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: secretData,
 	}
 
 	if err := ctrl.SetControllerReference(cluster, desiredSecret, r.Scheme); err != nil {
@@ -237,10 +253,11 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 		ObjectMeta: NineObjectMeta(cluster),
 		Spec: miniov2.TenantSpec{
 			Configuration: &corev1.LocalObjectReference{
-				Name: NineResourceName(cluster),
+				Name: MinioConfigName(cluster),
 			},
 			RequestAutoCert: &tmpBool,
-			Image:           "minio/minio:" + minio.Version,
+			Image:           minio.Configs.Image.Repository + ":" + minio.Configs.Image.Tag,
+			ImagePullPolicy: corev1.PullPolicy(minio.Configs.Image.PullPolicy),
 			Pools: []miniov2.Pool{
 				{
 					//Todo,this value should be loaded automatically
