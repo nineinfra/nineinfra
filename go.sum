@@ -133,6 +133,8 @@ github.com/nineinfra/kyuubi-operator v0.181.3 h1:8mkrgLnieN0uZOGiBmRbF3psvUr3BN6
 github.com/nineinfra/kyuubi-operator v0.181.3/go.mod h1:mVAPE3Yl8cM4Ycb40LXemfEsQrZNTPIVsNceKqPNdTE=
 github.com/nineinfra/metastore-operator v0.313.2 h1:UlhI172kBH/hOO/1Q0guJZj5DStk77HNLUKg8fSL/fs=
 github.com/nineinfra/metastore-operator v0.313.2/go.mod h1:iuUoylmdfuVFO6qmS62jFUIXAosGZxsjpcVdYcZThE0=
+github.com/nineinfra/zookeeper-operator v0.6.0 h1:gC7Mgm2SZKKer51kGQppLwit+e6YQVt4RfvjBu98u78=
+github.com/nineinfra/zookeeper-operator v0.6.0/go.mod h1:HmKGvn76kpYh8R8Wo5wOS9iD0rpDx/HtNwlYQoTVszI=
 github.com/onsi/ginkgo/v2 v2.13.0 h1:0jY9lJquiL8fcf3M4LAXN5aMlS/b2BV86HFFPCPMgE4=
 github.com/onsi/ginkgo/v2 v2.13.0/go.mod h1:TE309ZR8s5FsKKpuB1YAQYBzCaAfUgatB/xlT/ETL/o=
 github.com/onsi/gomega v1.29.0 h1:KIA/t2t5UBzoirT4H9tsML45GEbo3ouUnBHsCfD2tVg=

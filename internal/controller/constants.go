@@ -6,6 +6,7 @@ const (
 	DefaultShuffleDiskSize      = "200Gi"
 	DefaultShuffleDiskMountPath = "/opt/spark/mnt/dir1"
 	DefualtPasswordMD5Salt      = "nineinfra"
+	DefaultHeadlessSvcNameSuffix = "-headless"
 )
 
 const (
@@ -25,4 +26,10 @@ const (
 	DefaultKyuubiAuthUserName = "kyuubi"
 	DefaultKyuubiAuthPassword = "kyuubi"
 	DefaultKyuubiAuthDatabase = "kyuubi"
+	DefaultKyuubiZKNamespace  = "kyuubi"
+)
+
+const (
+	ZKResourceNameSuffix    = "-zookeeper"
+	DefaultZKClientPortName = "client"
 )

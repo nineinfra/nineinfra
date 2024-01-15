@@ -47,35 +47,13 @@ var NineDatahouseClusterset = []ClusterInfo{
 		},
 	},
 	{
-		Type:    MinioClusterType,
-		Version: "RELEASE.2023-09-07T02-05-02Z",
-		Configs: ClusterConfig{
-			Image: ImageConfig{
-				Repository: "minio/minio",
-				Tag:        "RELEASE.2023-09-07T02-05-02Z",
-				PullPolicy: "IfNotPresent",
-			},
-		},
-	},
-	{
 		Type:    DatabaseClusterType,
 		SubType: DbTypePostgres,
 		Version: "v16.0.0",
 	},
-	{
-		Type:    SparkClusterType,
-		Version: "v3.2.4",
-		Configs: ClusterConfig{
-			Image: ImageConfig{
-				Repository: "nineinfra/spark",
-				Tag:        "v3.2.4-minio",
-				PullPolicy: "IfNotPresent",
-			},
-		},
-	},
 }
 
-var NineDatahouseWithOLAPClusterset = []ClusterInfo{
+var NineDatahouseFullClusterset = []ClusterInfo{
 	{
 		Type:    KyuubiClusterType,
 		Version: "v1.8.0",
@@ -117,6 +95,11 @@ var NineDatahouseWithOLAPClusterset = []ClusterInfo{
 		},
 	},
 	{
+		Type:    DatabaseClusterType,
+		SubType: DbTypePostgres,
+		Version: "v16.0.0",
+	},
+	{
 		Type:    MinioClusterType,
 		Version: "RELEASE.2023-09-07T02-05-02Z",
 		Configs: ClusterConfig{
@@ -126,11 +109,6 @@ var NineDatahouseWithOLAPClusterset = []ClusterInfo{
 				PullPolicy: "IfNotPresent",
 			},
 		},
-	},
-	{
-		Type:    DatabaseClusterType,
-		SubType: DbTypePostgres,
-		Version: "v16.0.0",
 	},
 	{
 		Type:    SparkClusterType,
@@ -168,6 +146,7 @@ var NineDatahouseWithOLAPClusterset = []ClusterInfo{
 			},
 		},
 		Resource: ResourceConfig{
+			Replicas: 3,
 			ResourceRequirements: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
 					"storage": *resource.NewQuantity(int64(20*1024*1024*1024), resource.BinarySI),
@@ -191,6 +170,17 @@ var NineDatahouseWithOLAPClusterset = []ClusterInfo{
 				Requests: corev1.ResourceList{
 					"storage": *resource.NewQuantity(int64(100*1024*1024*1024), resource.BinarySI),
 				},
+			},
+		},
+	},
+	{
+		Type:    ZookeeperClusterType,
+		Version: "v3.8.3",
+		Configs: ClusterConfig{
+			Image: ImageConfig{
+				Repository: "nineinfra/zookeeper",
+				Tag:        "v3.8.3",
+				PullPolicy: "IfNotPresent",
 			},
 		},
 	},

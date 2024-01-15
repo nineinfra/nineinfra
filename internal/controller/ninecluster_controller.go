@@ -144,6 +144,11 @@ func (r *NineClusterReconciler) reconcileRoutine(ctx context.Context, cluster *n
 			if err != nil {
 				logger.Error(err, "Failed to reconcile DorisCluster")
 			}
+		case ninev1alpha1.ZookeeperClusterType:
+			err := r.reconcileZookeeperCluster(ctx, cluster, clus, logger)
+			if err != nil {
+				logger.Error(err, "Failed to reconcile ZookeeperCluster")
+			}
 		}
 	}(clus, mutex)
 }
@@ -162,48 +167,6 @@ func (r *NineClusterReconciler) renconcileDataHouse(ctx context.Context, cluster
 	//Todo,add check if the cluster running?
 	for _, v := range cluster.Spec.ClusterSet {
 		r.reconcileCluster(ctx, cluster, v, logger)
-		//switch v.Type {
-		//case ninev1alpha1.KyuubiClusterType:
-		//	//create kyuubi cluster with minio tenant info
-		//	go func(clus ninev1alpha1.ClusterInfo) {
-		//		err := r.reconcileKyuubiCluster(ctx, cluster, clus, logger)
-		//		if err != nil {
-		//			logger.Error(err, "Failed to reconcile KyuubiCluster")
-		//		}
-		//	}(v)
-		//case ninev1alpha1.MetaStoreClusterType:
-		//	//create metastore cluster with minio tenant info
-		//	go func(clus ninev1alpha1.ClusterInfo) {
-		//		err := r.reconcileMetastoreCluster(ctx, cluster, clus, logger)
-		//		if err != nil {
-		//			logger.Error(err, "Failed to reconcile MetastoreCluster")
-		//		}
-		//	}(v)
-		//case ninev1alpha1.MinioClusterType:
-		//	//create minio tenant and export minio endpoint,access key and secret key
-		//	go func(clus ninev1alpha1.ClusterInfo) {
-		//		err := r.reconcileMinioTenant(ctx, cluster, clus, logger)
-		//		if err != nil {
-		//			logger.Error(err, "Failed to reconcile MinioTenant")
-		//		}
-		//	}(v)
-		//case ninev1alpha1.DatabaseClusterType:
-		//	//create database by default
-		//	go func(clus ninev1alpha1.ClusterInfo) {
-		//		err := r.reconcileDatabaseCluster(ctx, cluster, clus, logger)
-		//		if err != nil {
-		//			logger.Error(err, "Failed to reconcile DatabaseCluster")
-		//		}
-		//	}(v)
-		//case ninev1alpha1.DorisClusterType:
-		//	//create doris cluster by default
-		//	go func(clus ninev1alpha1.ClusterInfo) {
-		//		err := r.reconcileDorisCluster(ctx, cluster, clus, logger)
-		//		if err != nil {
-		//			logger.Error(err, "Failed to reconcile DorisCluster")
-		//		}
-		//	}(v)
-		//}
 	}
 }
 

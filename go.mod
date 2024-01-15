@@ -11,6 +11,7 @@ require (
 	github.com/minio/operator/apis/minio.min.io/v2 v2.0.0-00010101000000-000000000000
 	github.com/nineinfra/kyuubi-operator v0.181.3
 	github.com/nineinfra/metastore-operator v0.313.2
+	github.com/nineinfra/zookeeper-operator v0.6.0
 	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.29.0
 	github.com/selectdb/doris-operator v0.0.0-20231229091107-c68dee6644fb

@@ -59,16 +59,10 @@ const (
 	DorisFEClusterType   ClusterType = "doris-fe"
 	DorisBEClusterType   ClusterType = "doris-be"
 	SparkClusterType     ClusterType = "spark"
-	FlinkClusterType     ClusterType = "flink"
 	MetaStoreClusterType ClusterType = "metastore"
 	DatabaseClusterType  ClusterType = "database"
 	MinioClusterType     ClusterType = "minio"
-	HdfsClusterType      ClusterType = "hdfs"
-	KafkaClusterType     ClusterType = "kafka"
 	ZookeeperClusterType ClusterType = "zookeeper"
-	AirflowClusterType   ClusterType = "airflow"
-	NifiClusterType      ClusterType = "nifi"
-	SuperSetClusterType  ClusterType = "superset"
 )
 
 const (
@@ -76,9 +70,17 @@ const (
 	DbTypeMysql    = "mysql"
 )
 
+type ClusterStorage string
+
+const (
+	NineClusterStorageMinio ClusterStorage = "minio"
+	NineClusterStorageHdfs  ClusterStorage = "hdfs"
+)
 const (
 	NineClusterFeatureOlap     = "olap"
-	NineClusterFeatureDataLake = "data-lake"
+	NineClusterFeatureStorage       = "storage"
+	NineClusterFeatureCustomStorage = "custom-storage"
+	NineClusterFeatureKyuubiHA      = "kyuubi-ha"
 )
 
 const (
@@ -87,6 +89,7 @@ const (
 )
 
 var NineInfraSupportedOlapList = []ClusterType{DorisClusterType}
+var NineInfraSupportedStorageList = []ClusterStorage{NineClusterStorageMinio, NineClusterStorageHdfs}
 
 type DatabaseCluster struct {
 	// connection Url of the database.such as jdbc:mysql://mysql:3306/metastore

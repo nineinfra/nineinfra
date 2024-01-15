@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"strconv"
 	"strings"
@@ -76,9 +77,9 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 		return nil, err
 	}
 
-	var tmpKyuubiConf map[string]string
+	var kyuubiConf map[string]string
 	if authConfig.AuthType == ninev1alpha1.ClusterAuthTypeJDBC {
-		tmpKyuubiConf = map[string]string{
+		kyuubiConf = map[string]string{
 			"kyuubi.kubernetes.namespace":             cluster.Namespace,
 			"kyuubi.authentication":                   "JDBC",
 			"kyuubi.authentication.jdbc.driver.class": "org.postgresql.Driver",
@@ -88,20 +89,48 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 			"kyuubi.authentication.jdbc.query":        `SELECT 1 FROM users WHERE username=${user} AND passwd=MD5(CONCAT('nineinfra',${password}))`,
 		}
 	} else {
-		tmpKyuubiConf = map[string]string{
+		kyuubiConf = map[string]string{
 			"kyuubi.kubernetes.namespace": cluster.Namespace,
 		}
 	}
 
+	var replicas int32 = kyuubi.Resource.Replicas
+	if IsKyuubiNeedHA(cluster) {
+		zkEndpoints, err := r.getZookeeperExposedInfo(ctx, cluster)
+		if err != nil {
+			LogError(ctx, err, "get zookeeper exposed info failed")
+			return nil, err
+		}
+		kyuubiConf["kyuubi.ha.namespace"] = DefaultKyuubiZKNamespace
+		kyuubiConf["kyuubi.ha.client.class"] = "org.apache.kyuubi.ha.client.zookeeper.ZookeeperDiscoveryClient"
+		var zkClientPort int32 = 0
+		for _, v := range zkEndpoints.Subsets[0].Ports {
+			if v.Name == DefaultZKClientPortName {
+				zkClientPort = v.Port
+			}
+		}
+		zkIpAndPorts := make([]string, 0)
+		for _, v := range zkEndpoints.Subsets[0].Addresses {
+			zkIpAndPorts = append(zkIpAndPorts, fmt.Sprintf("%s:%d", v.IP, zkClientPort))
+		}
+		kyuubiConf["kyuubi.ha.addresses"] = strings.Join(zkIpAndPorts, ",")
+		kyuubiConf["kyuubi.frontend.bind.host"] = os.Getenv("POD_IP")
+		replicas = 2
+	} else {
+		if replicas == 0 {
+			replicas = 1
+		}
+	}
+
 	for k, v := range kyuubi.Configs.Conf {
-		tmpKyuubiConf[k] = v
+		kyuubiConf[k] = v
 	}
 	spark := GetRefClusterInfo(cluster, kyuubi.ClusterRefs[0])
 	if spark == nil {
 		spark = GetDefaultRefClusterInfo(kyuubi.ClusterRefs[0])
 	}
 
-	tmpSparkConf := map[string]string{
+	sparkConf := map[string]string{
 		"spark.hadoop.fs.s3a.access.key":             minioExposedInfo.AccessKey,
 		"spark.hadoop.fs.s3a.secret.key":             minioExposedInfo.SecretKey,
 		"spark.hadoop.fs.s3a.path.style.access":      "true",
@@ -110,32 +139,32 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 	}
 
 	for k, v := range spark.Configs.Conf {
-		tmpSparkConf[k] = v
+		sparkConf[k] = v
 	}
 	//Currently,rss not supported,so one shuffle disk should be guaranteed
-	if _, ok := tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit"]; !ok {
-		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.claimName"] = "OnDemand"
-		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.storageClass"] = GetStorageClassName(&kyuubi)
-		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit"] = DefaultShuffleDiskSize
-		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.path"] = DefaultShuffleDiskMountPath
-		tmpSparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.readOnly"] = "false"
+	if _, ok := sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit"]; !ok {
+		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.claimName"] = "OnDemand"
+		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.storageClass"] = GetStorageClassName(&kyuubi)
+		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit"] = DefaultShuffleDiskSize
+		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.path"] = DefaultShuffleDiskMountPath
+		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.readOnly"] = "false"
 	}
 
-	LogInfo(ctx, fmt.Sprintf("sparkConf:%v\n", tmpSparkConf))
+	LogInfo(ctx, fmt.Sprintf("sparkConf:%v\n", sparkConf))
 	kyuubiDesired := &kov1alpha1.KyuubiCluster{
 		ObjectMeta: NineObjectMeta(cluster),
 		//Todo,here should be a template instead of hardcoding?
 		Spec: kov1alpha1.KyuubiClusterSpec{
 			KyuubiVersion: kyuubi.Version,
 			KyuubiResource: kov1alpha1.ResourceConfig{
-				Replicas: kyuubi.Resource.Replicas,
+				Replicas: replicas,
 			},
 			KyuubiImage: kov1alpha1.ImageConfig{
 				Repository: kyuubi.Configs.Image.Repository,
 				Tag:        kyuubi.Configs.Image.Tag,
 				PullPolicy: kyuubi.Configs.Image.PullPolicy,
 			},
-			KyuubiConf: tmpKyuubiConf,
+			KyuubiConf: kyuubiConf,
 			ClusterRefs: []kov1alpha1.ClusterRef{
 				{
 					Name: "spark",
@@ -148,7 +177,7 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 							PullPolicy: spark.Configs.Image.PullPolicy,
 						},
 						SparkNamespace: cluster.Namespace,
-						SparkDefaults:  tmpSparkConf,
+						SparkDefaults:  sparkConf,
 					},
 				},
 				{

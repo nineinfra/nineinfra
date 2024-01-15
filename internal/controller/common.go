@@ -6,6 +6,7 @@ import (
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	"strconv"
 	"strings"
 )
 
@@ -105,7 +106,41 @@ func GetOlapClusterType(cluster *ninev1alpha1.NineCluster) (ninev1alpha1.Cluster
 			return c, nil
 		}
 	}
-	return "", errors.New("no supported olap found")
+	return "", errors.New(fmt.Sprintf("no supported olap found,[%s] supported now", ninev1alpha1.NineInfraSupportedOlapList))
+}
+
+func CheckStorageSupported(c ninev1alpha1.ClusterStorage) bool {
+	for _, v := range ninev1alpha1.NineInfraSupportedStorageList {
+		if c == v {
+			return true
+		}
+	}
+	return false
+}
+
+func GetClusterStorage(cluster *ninev1alpha1.NineCluster) (ninev1alpha1.ClusterStorage, error) {
+	if cluster.Spec.Features != nil {
+		if value, ok := cluster.Spec.Features[ninev1alpha1.NineClusterFeatureStorage]; ok {
+			s := ninev1alpha1.ClusterStorage(value)
+			if CheckStorageSupported(s) {
+				return s, nil
+			}
+		}
+	}
+	return ninev1alpha1.NineClusterStorageMinio, nil
+}
+
+func IsKyuubiNeedHA(cluster *ninev1alpha1.NineCluster) bool {
+	if cluster.Spec.Features != nil {
+		if value, ok := cluster.Spec.Features[ninev1alpha1.NineClusterFeatureKyuubiHA]; ok {
+			ha, err := strconv.ParseBool(value)
+			if err != nil {
+				return false
+			}
+			return ha
+		}
+	}
+	return false
 }
 
 func FillNineClusterType(cluster *ninev1alpha1.NineCluster) error {
@@ -121,29 +156,45 @@ func FillNineClusterType(cluster *ninev1alpha1.NineCluster) error {
 
 func FillClustersInfo(cluster *ninev1alpha1.NineCluster) error {
 	olap, _ := GetOlapClusterType(cluster)
-	if cluster.Spec.ClusterSet == nil {
-		if olap == "" {
-			cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseClusterset
-		} else {
-			cluster.Spec.ClusterSet = ninev1alpha1.NineDatahouseWithOLAPClusterset
-		}
-	} else {
-		//check kyuubi,spark/flink,metastore and database
-		var userClusterTypes = map[ninev1alpha1.ClusterType]bool{}
+	storage, _ := GetClusterStorage(cluster)
+	iskyuubiha := IsKyuubiNeedHA(cluster)
+	var weNeedClusterTypes = map[ninev1alpha1.ClusterType]bool{}
+	for _, v := range ninev1alpha1.NineDatahouseClusterset {
+		weNeedClusterTypes[v.Type] = true
+	}
+	if cluster.Spec.Type == ninev1alpha1.NineClusterTypeBatch {
+		weNeedClusterTypes[ninev1alpha1.SparkClusterType] = true
+	}
+
+	if iskyuubiha || storage == ninev1alpha1.NineClusterStorageHdfs {
+		weNeedClusterTypes[ninev1alpha1.ZookeeperClusterType] = true
+	}
+
+	if storage == ninev1alpha1.NineClusterStorageMinio {
+		weNeedClusterTypes[ninev1alpha1.MinioClusterType] = true
+	}
+
+	if olap == ninev1alpha1.DorisClusterType {
+		weNeedClusterTypes[ninev1alpha1.DorisClusterType] = true
+		weNeedClusterTypes[ninev1alpha1.DorisFEClusterType] = true
+		weNeedClusterTypes[ninev1alpha1.DorisBEClusterType] = true
+	}
+	var userSpecifyClusterTypes = map[ninev1alpha1.ClusterType]bool{}
+	if cluster.Spec.ClusterSet != nil {
 		for _, v := range cluster.Spec.ClusterSet {
-			userClusterTypes[v.Type] = true
+			userSpecifyClusterTypes[v.Type] = true
 		}
-		var defaultClusterSet []ninev1alpha1.ClusterInfo
-		if olap == "" {
-			defaultClusterSet = ninev1alpha1.NineDatahouseClusterset
-		} else {
-			defaultClusterSet = ninev1alpha1.NineDatahouseWithOLAPClusterset
-		}
-		for _, v := range defaultClusterSet {
-			if _, ok := userClusterTypes[v.Type]; !ok {
+	}
+	if cluster.Spec.ClusterSet == nil {
+		cluster.Spec.ClusterSet = make([]ninev1alpha1.ClusterInfo, 0)
+	}
+	for _, v := range ninev1alpha1.NineDatahouseFullClusterset {
+		if _, custom := weNeedClusterTypes[v.Type]; custom {
+			if _, specify := userSpecifyClusterTypes[v.Type]; !specify {
 				cluster.Spec.ClusterSet = append(cluster.Spec.ClusterSet, v)
 			}
 		}
 	}
+
 	return nil
 }
