@@ -9,7 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"strconv"
 	"strings"
@@ -96,25 +95,16 @@ func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, clus
 
 	var replicas int32 = kyuubi.Resource.Replicas
 	if IsKyuubiNeedHA(cluster) {
-		zkEndpoints, err := r.getZookeeperExposedInfo(ctx, cluster)
+		zkIpAndPorts, err := r.getZookeeperExposedInfo(ctx, cluster)
 		if err != nil {
 			LogError(ctx, err, "get zookeeper exposed info failed")
 			return nil, err
 		}
 		kyuubiConf["kyuubi.ha.namespace"] = DefaultKyuubiZKNamespace
 		kyuubiConf["kyuubi.ha.client.class"] = "org.apache.kyuubi.ha.client.zookeeper.ZookeeperDiscoveryClient"
-		var zkClientPort int32 = 0
-		for _, v := range zkEndpoints.Subsets[0].Ports {
-			if v.Name == DefaultZKClientPortName {
-				zkClientPort = v.Port
-			}
-		}
-		zkIpAndPorts := make([]string, 0)
-		for _, v := range zkEndpoints.Subsets[0].Addresses {
-			zkIpAndPorts = append(zkIpAndPorts, fmt.Sprintf("%s:%d", v.IP, zkClientPort))
-		}
+
 		kyuubiConf["kyuubi.ha.addresses"] = strings.Join(zkIpAndPorts, ",")
-		kyuubiConf["kyuubi.frontend.bind.host"] = os.Getenv("POD_IP")
+		//kyuubiConf["kyuubi.frontend.bind.host"] = os.Getenv("POD_IP")
 		replicas = 2
 	} else {
 		if replicas == 0 {

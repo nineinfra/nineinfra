@@ -1,12 +1,14 @@
 package controller
 
 const (
-	DefaultGloableNameSuffix    = "nineinfra"
-	DefaultStorageClass         = "nineinfra-default"
-	DefaultShuffleDiskSize      = "200Gi"
-	DefaultShuffleDiskMountPath = "/opt/spark/mnt/dir1"
-	DefualtPasswordMD5Salt      = "nineinfra"
+	DefaultGloableNameSuffix     = "nineinfra"
+	DefaultStorageClass          = "nineinfra-default"
+	DefaultShuffleDiskSize       = "200Gi"
+	DefaultShuffleDiskMountPath  = "/opt/spark/mnt/dir1"
+	DefualtPasswordMD5Salt       = "nineinfra"
 	DefaultHeadlessSvcNameSuffix = "-headless"
+	DefaultClusterLabelKey       = "cluster"
+	DefaultAppLabelKey           = "app"
 )
 
 const (
@@ -30,6 +32,7 @@ const (
 )
 
 const (
-	ZKResourceNameSuffix    = "-zookeeper"
-	DefaultZKClientPortName = "client"
+	ZKResourceNameSuffix        = "-zookeeper"
+	DefaultZookeeperClusterSign = "zookeeper"
+	DefaultZKClientPortName     = "client"
 )
