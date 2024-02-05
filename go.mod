@@ -9,6 +9,7 @@ require (
 	github.com/minio/directpv/apis/directpv.min.io/v1beta1 v0.0.0-00010101000000-000000000000
 	github.com/minio/minio-go/v7 v7.0.63
 	github.com/minio/operator/apis/minio.min.io/v2 v2.0.0-00010101000000-000000000000
+	github.com/nineinfra/hdfs-operator v0.7.0
 	github.com/nineinfra/kyuubi-operator v0.181.3
 	github.com/nineinfra/metastore-operator v0.313.2
 	github.com/nineinfra/zookeeper-operator v0.6.0

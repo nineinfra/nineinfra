@@ -48,7 +48,7 @@ spec:
                           description: Auth, Auth info of the cluster
                           properties:
                             authType:
-                              description: AuthType. The auth type of the cluster,default:`ldap`.
+                              description: AuthType. The auth type of the cluster,default:ClusterAuthTypeSimple.
                               type: string
                             password:
                               description: Password for the cluster access.
@@ -85,10 +85,23 @@ spec:
                           required:
                           - repository
                           type: object
+                        k8sConf:
+                          additionalProperties:
+                            type: string
+                          description: K8sConf. k/v configs for the cluster in k8s.such
+                            as the cluster domain
+                          type: object
                       type: object
+                    name:
+                      description: Name. name of the cluster.
+                      type: string
                     resource:
                       description: Resource config of the cluster.
                       properties:
+                        disks:
+                          description: num of the disks. default value is 1
+                          format: int32
+                          type: integer
                         replicas:
                           description: The replicas of the cluster workload.Default
                             value is 1

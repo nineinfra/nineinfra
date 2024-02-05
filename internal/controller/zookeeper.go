@@ -23,10 +23,6 @@ func zkResourceName(cluster *ninev1alpha1.NineCluster) string {
 	return NineResourceName(cluster, ZKResourceNameSuffix)
 }
 
-func zkHeadlessSvcName(cluster *ninev1alpha1.NineCluster) string {
-	return zkResourceName(cluster) + DefaultHeadlessSvcNameSuffix
-}
-
 func zkSvcName(cluster *ninev1alpha1.NineCluster) string {
 	return zkResourceName(cluster)
 }
@@ -95,7 +91,6 @@ func (r *NineClusterReconciler) constructZookeeperCluster(ctx context.Context, n
 	}
 	clusterDesired := &clusterv1.ZookeeperCluster{
 		ObjectMeta: NineObjectMeta(ninecluster),
-		//Todo,here should be a template instead of hardcoding?
 		Spec: clusterv1.ZookeeperClusterSpec{
 			Version: cluster.Version,
 			Resource: clusterv1.ResourceConfig{

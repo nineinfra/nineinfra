@@ -9,6 +9,12 @@ const (
 	DefaultHeadlessSvcNameSuffix = "-headless"
 	DefaultClusterLabelKey       = "cluster"
 	DefaultAppLabelKey           = "app"
+	DefaultDiskNum               = 4
+	DefaultMaxWaitSeconds        = 600
+	// DefaultClusterDomainName is the default domain name key for the k8s cluster
+	DefaultClusterDomainName = "clusterDomain"
+	// DefaultClusterDomain is the default domain name value for the k8s cluster
+	DefaultClusterDomain = "cluster.local"
 )
 
 const (
@@ -35,4 +41,10 @@ const (
 	ZKResourceNameSuffix        = "-zookeeper"
 	DefaultZookeeperClusterSign = "zookeeper"
 	DefaultZKClientPortName     = "client"
+)
+
+const (
+	HdfsResourceNameSuffix = "-hdfs"
+	DefaultHdfsClusterSign = "hdfs"
+	HdfsRoleNameNode       = "namenode"
 )

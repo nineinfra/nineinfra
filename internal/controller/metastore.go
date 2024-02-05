@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-logr/logr"
 	mov1alpha1 "github.com/nineinfra/metastore-operator/api/v1alpha1"
 	moversioned "github.com/nineinfra/metastore-operator/client/clientset/versioned"
@@ -13,6 +14,74 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"time"
 )
+
+func (r *NineClusterReconciler) constructMetastoreClusterRefs(ctx context.Context, cluster *ninev1alpha1.NineCluster) ([]mov1alpha1.ClusterRef, error) {
+	dbc, err := r.getDatabaseExposedInfo(ctx, cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	crs := []mov1alpha1.ClusterRef{
+		{
+			Name: "database",
+			Type: "database",
+			Database: mov1alpha1.DatabaseCluster{
+				ConnectionUrl: dbc.ConnectionUrl,
+				DbType:        dbc.DbType,
+				Password:      dbc.Password,
+				UserName:      dbc.UserName,
+			},
+		},
+	}
+
+	switch GetClusterStorage(cluster) {
+	case ninev1alpha1.NineClusterStorageHdfs:
+		_, err := r.getHdfsExposedInfo(ctx, cluster)
+		if err != nil {
+			return nil, err
+		}
+		crs = append(crs, mov1alpha1.ClusterRef{
+			Name: "hdfs",
+			Type: "hdfs",
+			Hdfs: mov1alpha1.HdfsCluster{
+				HdfsSite: r.constructHdfsSite(ctx, cluster),
+				CoreSite: r.constructCoreSite(ctx, cluster),
+			},
+		})
+	case ninev1alpha1.NineClusterStorageMinio:
+		minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
+		if err != nil {
+			return nil, err
+		}
+		err = r.createMinioBucketAndFolder(ctx, &minioExposedInfo, ninev1alpha1.DefaultMinioBucket, ninev1alpha1.DefaultMinioDataHouseFolder, false)
+		if err != nil {
+			return nil, err
+		}
+		crs = append(crs, mov1alpha1.ClusterRef{
+			Name: "minio",
+			Type: "minio",
+			Minio: mov1alpha1.MinioCluster{
+				Endpoint:        minioFullEndpoint(minioExposedInfo.Endpoint, false),
+				AccessKey:       minioExposedInfo.AccessKey,
+				SecretKey:       minioExposedInfo.SecretKey,
+				SSLEnabled:      "false",
+				PathStyleAccess: "true",
+			},
+		})
+	}
+	return crs, nil
+}
+
+func (r *NineClusterReconciler) constructHiveSite(ctx context.Context, cluster *ninev1alpha1.NineCluster) map[string]string {
+	hiveSite := make(map[string]string, 0)
+	switch GetClusterStorage(cluster) {
+	case ninev1alpha1.NineClusterStorageMinio:
+		hiveSite["hive.metastore.warehouse.dir"] = fmt.Sprintf("s3a:/%s", ninev1alpha1.DataHouseDir)
+	case ninev1alpha1.NineClusterStorageHdfs:
+		hiveSite["hive.metastore.warehouse.dir"] = fmt.Sprintf("hdfs://%s/%s", "nineinfra", ninev1alpha1.DataHouseDir)
+	}
+	return hiveSite
+}
 
 func (r *NineClusterReconciler) getMetastoreExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (mov1alpha1.ExposedInfo, error) {
 	me := mov1alpha1.ExposedInfo{}
@@ -60,28 +129,17 @@ func (r *NineClusterReconciler) getMetastoreExposedInfo(ctx context.Context, clu
 }
 
 func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, metastore ninev1alpha1.ClusterInfo) (*mov1alpha1.MetastoreCluster, error) {
-	minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
+	clusterRefs, err := r.constructMetastoreClusterRefs(ctx, cluster)
 	if err != nil {
 		return nil, err
 	}
 
-	err = r.createMinioBucketAndFolder(ctx, &minioExposedInfo, ninev1alpha1.DefaultMinioBucket, ninev1alpha1.DefaultMinioDataHouseFolder, false)
-	if err != nil {
-		return nil, err
-	}
-
-	dbc, err := r.getDatabaseExposedInfo(ctx, cluster)
-	if err != nil {
-		return nil, err
-	}
-
-	tmpMetastoreConf := map[string]string{}
+	metastoreConf := r.constructHiveSite(ctx, cluster)
 	for k, v := range metastore.Configs.Conf {
-		tmpMetastoreConf[k] = v
+		metastoreConf[k] = v
 	}
 	metastoreDesired := &mov1alpha1.MetastoreCluster{
 		ObjectMeta: NineObjectMeta(cluster),
-		//Todo,here should be a template instead of hardcoding?
 		Spec: mov1alpha1.MetastoreClusterSpec{
 			MetastoreVersion: metastore.Version,
 			MetastoreResource: mov1alpha1.ResourceConfig{
@@ -92,30 +150,8 @@ func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, c
 				Tag:        metastore.Configs.Image.Tag,
 				PullPolicy: metastore.Configs.Image.PullPolicy,
 			},
-			MetastoreConf: tmpMetastoreConf,
-			ClusterRefs: []mov1alpha1.ClusterRef{
-				{
-					Name: "database",
-					Type: "database",
-					Database: mov1alpha1.DatabaseCluster{
-						ConnectionUrl: dbc.ConnectionUrl,
-						DbType:        dbc.DbType,
-						Password:      dbc.Password,
-						UserName:      dbc.UserName,
-					},
-				},
-				{
-					Name: "minio",
-					Type: "minio",
-					Minio: mov1alpha1.MinioCluster{
-						Endpoint:        minioFullEndpoint(minioExposedInfo.Endpoint, false),
-						AccessKey:       minioExposedInfo.AccessKey,
-						SecretKey:       minioExposedInfo.SecretKey,
-						SSLEnabled:      "false",
-						PathStyleAccess: "true",
-					},
-				},
-			},
+			MetastoreConf: metastoreConf,
+			ClusterRefs:   clusterRefs,
 		},
 	}
 

@@ -129,6 +129,8 @@ github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9G
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
+github.com/nineinfra/hdfs-operator v0.7.0 h1:0MmMMHoV3lHKD4SfxB9BLZQ7p2tjskrJNZgWbV4dMjs=
+github.com/nineinfra/hdfs-operator v0.7.0/go.mod h1:i2bJRuCnhjVo/sewBXv/9/z57jbFg23Ds69XmdKLbJ8=
 github.com/nineinfra/kyuubi-operator v0.181.3 h1:8mkrgLnieN0uZOGiBmRbF3psvUr3BN6yiVO3lO1sVsQ=
 github.com/nineinfra/kyuubi-operator v0.181.3/go.mod h1:mVAPE3Yl8cM4Ycb40LXemfEsQrZNTPIVsNceKqPNdTE=
 github.com/nineinfra/metastore-operator v0.313.2 h1:UlhI172kBH/hOO/1Q0guJZj5DStk77HNLUKg8fSL/fs=

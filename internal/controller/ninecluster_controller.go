@@ -120,35 +120,54 @@ func (r *NineClusterReconciler) reconcileRoutine(ctx context.Context, cluster *n
 		defer mutex.Unlock()
 		switch clus.Type {
 		case ninev1alpha1.KyuubiClusterType:
-			err := r.reconcileKyuubiCluster(ctx, cluster, clus, logger)
-			if err != nil {
-				logger.Error(err, "Failed to reconcile KyuubiCluster")
-			}
+			go func(ctx context.Context, cluster *ninev1alpha1.NineCluster, clus ninev1alpha1.ClusterInfo, logger logr.Logger) {
+				err := r.reconcileKyuubiCluster(ctx, cluster, clus, logger)
+				if err != nil {
+					logger.Error(err, "Failed to reconcile KyuubiCluster")
+				}
+			}(ctx, cluster, clus, logger)
 		case ninev1alpha1.MetaStoreClusterType:
-			err := r.reconcileMetastoreCluster(ctx, cluster, clus, logger)
-			if err != nil {
-				logger.Error(err, "Failed to reconcile MetastoreCluster")
-			}
+			go func(ctx context.Context, cluster *ninev1alpha1.NineCluster, clus ninev1alpha1.ClusterInfo, logger logr.Logger) {
+				err := r.reconcileMetastoreCluster(ctx, cluster, clus, logger)
+				if err != nil {
+					logger.Error(err, "Failed to reconcile MetastoreCluster")
+				}
+			}(ctx, cluster, clus, logger)
 		case ninev1alpha1.MinioClusterType:
-			err := r.reconcileMinioTenant(ctx, cluster, clus, logger)
-			if err != nil {
-				logger.Error(err, "Failed to reconcile DatabaseCluster")
-			}
+			go func(ctx context.Context, cluster *ninev1alpha1.NineCluster, clus ninev1alpha1.ClusterInfo, logger logr.Logger) {
+				err := r.reconcileMinioTenant(ctx, cluster, clus, logger)
+				if err != nil {
+					logger.Error(err, "Failed to reconcile DatabaseCluster")
+				}
+			}(ctx, cluster, clus, logger)
 		case ninev1alpha1.DatabaseClusterType:
-			err := r.reconcileDatabaseCluster(ctx, cluster, clus, logger)
-			if err != nil {
-				logger.Error(err, "Failed to reconcile DatabaseCluster")
-			}
+			go func(ctx context.Context, cluster *ninev1alpha1.NineCluster, clus ninev1alpha1.ClusterInfo, logger logr.Logger) {
+				err := r.reconcileDatabaseCluster(ctx, cluster, clus, logger)
+				if err != nil {
+					logger.Error(err, "Failed to reconcile DatabaseCluster")
+				}
+			}(ctx, cluster, clus, logger)
 		case ninev1alpha1.DorisClusterType:
-			err := r.reconcileDorisCluster(ctx, cluster, clus, logger)
-			if err != nil {
-				logger.Error(err, "Failed to reconcile DorisCluster")
-			}
+			go func(ctx context.Context, cluster *ninev1alpha1.NineCluster, clus ninev1alpha1.ClusterInfo, logger logr.Logger) {
+				err := r.reconcileDorisCluster(ctx, cluster, clus, logger)
+				if err != nil {
+					logger.Error(err, "Failed to reconcile DorisCluster")
+				}
+			}(ctx, cluster, clus, logger)
 		case ninev1alpha1.ZookeeperClusterType:
-			err := r.reconcileZookeeperCluster(ctx, cluster, clus, logger)
-			if err != nil {
-				logger.Error(err, "Failed to reconcile ZookeeperCluster")
-			}
+			go func(ctx context.Context, cluster *ninev1alpha1.NineCluster, clus ninev1alpha1.ClusterInfo, logger logr.Logger) {
+				err := r.reconcileZookeeperCluster(ctx, cluster, clus, logger)
+				if err != nil {
+					logger.Error(err, "Failed to reconcile ZookeeperCluster")
+				}
+			}(ctx, cluster, clus, logger)
+		case ninev1alpha1.HdfsClusterType:
+			go func(ctx context.Context, cluster *ninev1alpha1.NineCluster, clus ninev1alpha1.ClusterInfo, logger logr.Logger) {
+				err := r.reconcileHdfsCluster(ctx, cluster, clus, logger)
+				if err != nil {
+					logger.Error(err, "Failed to reconcile HdfsCluster")
+				}
+			}(ctx, cluster, clus, logger)
 		}
 	}(clus, mutex)
 }

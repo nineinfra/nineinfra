@@ -54,15 +54,19 @@ type ClusterType string
 
 // Different types of clusters.
 const (
-	KyuubiClusterType    ClusterType = "kyuubi"
-	DorisClusterType     ClusterType = "doris"
-	DorisFEClusterType   ClusterType = "doris-fe"
-	DorisBEClusterType   ClusterType = "doris-be"
-	SparkClusterType     ClusterType = "spark"
-	MetaStoreClusterType ClusterType = "metastore"
-	DatabaseClusterType  ClusterType = "database"
-	MinioClusterType     ClusterType = "minio"
-	ZookeeperClusterType ClusterType = "zookeeper"
+	KyuubiClusterType          ClusterType = "kyuubi"
+	DorisClusterType           ClusterType = "doris"
+	DorisFEClusterType         ClusterType = "doris-fe"
+	DorisBEClusterType         ClusterType = "doris-be"
+	SparkClusterType           ClusterType = "spark"
+	MetaStoreClusterType       ClusterType = "metastore"
+	DatabaseClusterType        ClusterType = "database"
+	MinioClusterType           ClusterType = "minio"
+	ZookeeperClusterType       ClusterType = "zookeeper"
+	HdfsClusterType            ClusterType = "hdfs"
+	HdfsNameNodeClusterType    ClusterType = "namenode"
+	HdfsDataNodeClusterType    ClusterType = "datanode"
+	HdfsJournalNodeClusterType ClusterType = "journalnode"
 )
 
 const (
@@ -77,7 +81,7 @@ const (
 	NineClusterStorageHdfs  ClusterStorage = "hdfs"
 )
 const (
-	NineClusterFeatureOlap     = "olap"
+	NineClusterFeatureOlap          = "olap"
 	NineClusterFeatureStorage       = "storage"
 	NineClusterFeatureCustomStorage = "custom-storage"
 	NineClusterFeatureKyuubiHA      = "kyuubi-ha"
@@ -111,10 +115,22 @@ type MinioExposedInfo struct {
 	SecretKey string `json:"secretKey"`
 }
 
+type HdfsExposedInfo struct {
+	// DefaultFS fs.defaultFS of the hdfs.
+	DefaultFS string `json:"defaultFS"`
+	// HdfsSite hdfsSite.
+	HdfsSite map[string]string `json:"hdfsSite"`
+	// CoreSite coreSite.
+	CoreSite map[string]string `json:"coreSite"`
+}
+
 type ResourceConfig struct {
 	// The replicas of the cluster workload.Default value is 1
 	// +optional
 	Replicas int32 `json:"replicas"`
+	// num of the disks. default value is 1
+	// +optional
+	Disks int32 `json:"disks"`
 	// the storage class. default value is nineinfra-default
 	// +optional
 	StorageClass string `json:"storageClass"`
@@ -158,13 +174,19 @@ type ClusterConfig struct {
 	// Conf,k,v pairs will be into the main conf file
 	// +optional
 	Conf map[string]string `json:"conf,omitempty"`
+	// K8sConf. k/v configs for the cluster in k8s.such as the cluster domain
+	// +optional
+	K8sConf map[string]string `json:"k8sConf,omitempty"`
 }
 
 type ClusterInfo struct {
-	// Type of the cluster.
-	Type ClusterType `json:"type"`
 	// Version of the cluster.
 	Version string `json:"version"`
+	// Type of the cluster.
+	Type ClusterType `json:"type"`
+	// Name. name of the cluster.
+	// +optional
+	Name string `json:"name"`
 	// SubType,some type of cluster such as database has subtype,Support mysql,postgres
 	// +optional
 	SubType string `json:"subType,omitempty"`

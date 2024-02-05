@@ -19,6 +19,14 @@ import (
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 )
 
+func (r *NineClusterReconciler) constructKyuubiConf() map[string]string {
+	return nil
+}
+
+func (r *NineClusterReconciler) constructSparkConf() map[string]string {
+	return nil
+}
+
 func (r *NineClusterReconciler) getAuthConfig(kyuubi ninev1alpha1.ClusterInfo) ninev1alpha1.AuthConfig {
 	if kyuubi.Configs.Auth.AuthType == "" {
 		return ninev1alpha1.AuthConfig{

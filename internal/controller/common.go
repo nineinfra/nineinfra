@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"strconv"
@@ -37,8 +39,8 @@ func PGSuperUserSecretName(cluster *ninev1alpha1.NineCluster) string {
 
 func NineConstructLabels(cluster *ninev1alpha1.NineCluster) map[string]string {
 	return map[string]string{
-		"cluster": cluster.Name,
-		"app":     ninev1alpha1.ClusterSign,
+		DefaultClusterLabelKey: cluster.Name,
+		DefaultAppLabelKey:     ninev1alpha1.ClusterSign,
 	}
 }
 
@@ -118,16 +120,16 @@ func CheckStorageSupported(c ninev1alpha1.ClusterStorage) bool {
 	return false
 }
 
-func GetClusterStorage(cluster *ninev1alpha1.NineCluster) (ninev1alpha1.ClusterStorage, error) {
+func GetClusterStorage(cluster *ninev1alpha1.NineCluster) ninev1alpha1.ClusterStorage {
 	if cluster.Spec.Features != nil {
 		if value, ok := cluster.Spec.Features[ninev1alpha1.NineClusterFeatureStorage]; ok {
 			s := ninev1alpha1.ClusterStorage(value)
 			if CheckStorageSupported(s) {
-				return s, nil
+				return s
 			}
 		}
 	}
-	return ninev1alpha1.NineClusterStorageMinio, nil
+	return ninev1alpha1.NineClusterStorageMinio
 }
 
 func IsKyuubiNeedHA(cluster *ninev1alpha1.NineCluster) bool {
@@ -143,6 +145,40 @@ func IsKyuubiNeedHA(cluster *ninev1alpha1.NineCluster) bool {
 	return false
 }
 
+func GetDiskNum(cluster ninev1alpha1.ClusterInfo) int {
+	if cluster.Resource.Disks != 0 {
+		return int(cluster.Resource.Disks)
+	}
+	return DefaultDiskNum
+}
+
+func RequestStorage(q resource.Quantity) corev1.ResourceList {
+	m := make(corev1.ResourceList, 1)
+	m[corev1.ResourceStorage] = q
+	return m
+}
+
+func CapacityPerVolume(capacity string, volumes int32) (*resource.Quantity, error) {
+	totalQuantity, err := resource.ParseQuantity(capacity)
+	if err != nil {
+		return nil, err
+	}
+	return resource.NewQuantity(totalQuantity.Value()/int64(volumes), totalQuantity.Format), nil
+}
+
+func GetClusterDomain(cluster *ninev1alpha1.NineCluster, cType ninev1alpha1.ClusterType) string {
+	if cluster.Spec.ClusterSet != nil {
+		for _, v := range cluster.Spec.ClusterSet {
+			if v.Type == cType && v.Configs.K8sConf != nil {
+				if value, ok := v.Configs.K8sConf[DefaultClusterDomainName]; ok {
+					return value
+				}
+			}
+		}
+	}
+	return DefaultClusterDomain
+}
+
 func FillNineClusterType(cluster *ninev1alpha1.NineCluster) error {
 	if cluster.Spec.Type == "" {
 		cluster.Spec.Type = ninev1alpha1.NineClusterTypeBatch
@@ -156,7 +192,7 @@ func FillNineClusterType(cluster *ninev1alpha1.NineCluster) error {
 
 func FillClustersInfo(cluster *ninev1alpha1.NineCluster) error {
 	olap, _ := GetOlapClusterType(cluster)
-	storage, _ := GetClusterStorage(cluster)
+	storage := GetClusterStorage(cluster)
 	iskyuubiha := IsKyuubiNeedHA(cluster)
 	var weNeedClusterTypes = map[ninev1alpha1.ClusterType]bool{}
 	for _, v := range ninev1alpha1.NineDatahouseClusterset {
@@ -170,8 +206,14 @@ func FillClustersInfo(cluster *ninev1alpha1.NineCluster) error {
 		weNeedClusterTypes[ninev1alpha1.ZookeeperClusterType] = true
 	}
 
-	if storage == ninev1alpha1.NineClusterStorageMinio {
+	switch storage {
+	case ninev1alpha1.NineClusterStorageMinio:
 		weNeedClusterTypes[ninev1alpha1.MinioClusterType] = true
+	case ninev1alpha1.NineClusterStorageHdfs:
+		weNeedClusterTypes[ninev1alpha1.HdfsClusterType] = true
+		weNeedClusterTypes[ninev1alpha1.HdfsNameNodeClusterType] = true
+		weNeedClusterTypes[ninev1alpha1.HdfsJournalNodeClusterType] = true
+		weNeedClusterTypes[ninev1alpha1.HdfsDataNodeClusterType] = true
 	}
 
 	if olap == ninev1alpha1.DorisClusterType {

@@ -11,7 +11,6 @@ import (
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -23,19 +22,9 @@ import (
 	"time"
 )
 
-func tenantStorage(q resource.Quantity) corev1.ResourceList {
-	m := make(corev1.ResourceList, 1)
-	m[corev1.ResourceStorage] = q
-	return m
-}
-
-func capacityPerVolume(capacity string, volumes int32) (*resource.Quantity, error) {
-	totalQuantity, err := resource.ParseQuantity(capacity)
-	if err != nil {
-		return nil, err
-	}
-	return resource.NewQuantity(totalQuantity.Value()/int64(volumes), totalQuantity.Format), nil
-}
+var (
+	DefaultMinioDiskNum = 4
+)
 
 func minioFullEndpoint(endpoint string, sslEnable bool) string {
 	if sslEnable {
@@ -234,7 +223,6 @@ func (r *NineClusterReconciler) getDirectPVNodesCount(ctx context.Context) (int3
 func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluster *ninev1alpha1.NineCluster, minio ninev1alpha1.ClusterInfo) (*miniov2.Tenant, error) {
 	sc := GetStorageClassName(&minio)
 	tmpBool := false
-	q, _ := capacityPerVolume(strconv.Itoa(GiB2Bytes(cluster.Spec.DataVolume)), 4*4)
 
 	if err := r.reconcileMinioTenantConfigSecret(ctx, cluster, minio); err != nil {
 		return nil, err
@@ -249,6 +237,8 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 		return nil, err
 	}
 
+	q, _ := CapacityPerVolume(strconv.Itoa(GiB2Bytes(cluster.Spec.DataVolume)), dpnodes*int32(GetDiskNum(minio)))
+
 	mtDesired := &miniov2.Tenant{
 		ObjectMeta: NineObjectMeta(cluster),
 		Spec: miniov2.TenantSpec{
@@ -260,9 +250,8 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 			ImagePullPolicy: corev1.PullPolicy(minio.Configs.Image.PullPolicy),
 			Pools: []miniov2.Pool{
 				{
-					//Todo,this value should be loaded automatically
 					Servers:          dpnodes,
-					VolumesPerServer: 4,
+					VolumesPerServer: int32(GetDiskNum(minio)),
 					VolumeClaimTemplate: &corev1.PersistentVolumeClaim{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "data",
@@ -272,7 +261,7 @@ func (r *NineClusterReconciler) constructMinioTenant(ctx context.Context, cluste
 								corev1.ReadWriteOnce,
 							},
 							Resources: corev1.ResourceRequirements{
-								Requests: tenantStorage(*q),
+								Requests: RequestStorage(*q),
 							},
 							StorageClassName: &sc,
 						},

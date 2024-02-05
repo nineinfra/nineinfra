@@ -41,9 +41,6 @@ var NineDatahouseClusterset = []ClusterInfo{
 				Tag:        "v3.1.3",
 				PullPolicy: "IfNotPresent",
 			},
-			Conf: map[string]string{
-				"hive.metastore.warehouse.dir": "s3a:/" + DataHouseDir,
-			},
 		},
 	},
 	{
@@ -88,9 +85,6 @@ var NineDatahouseFullClusterset = []ClusterInfo{
 				Repository: "nineinfra/metastore",
 				Tag:        "v3.1.3",
 				PullPolicy: "IfNotPresent",
-			},
-			Conf: map[string]string{
-				"hive.metastore.warehouse.dir": "s3a:/" + DataHouseDir,
 			},
 		},
 	},
@@ -182,6 +176,43 @@ var NineDatahouseFullClusterset = []ClusterInfo{
 				Tag:        "v3.8.3",
 				PullPolicy: "IfNotPresent",
 			},
+		},
+	},
+	{
+		Type:    HdfsClusterType,
+		Version: "v3.3.6",
+		Configs: ClusterConfig{
+			Image: ImageConfig{
+				Repository: "nineinfra/hdfs",
+				Tag:        "v3.3.6",
+				PullPolicy: "IfNotPresent",
+			},
+		},
+		ClusterRefs: []ClusterType{
+			HdfsNameNodeClusterType,
+			HdfsDataNodeClusterType,
+			HdfsJournalNodeClusterType,
+		},
+	},
+	{
+		Type:    HdfsNameNodeClusterType,
+		Version: "v3.3.6",
+		Resource: ResourceConfig{
+			Replicas: 2,
+		},
+	},
+	{
+		Type:    HdfsDataNodeClusterType,
+		Version: "v3.3.6",
+		Resource: ResourceConfig{
+			Replicas: 3,
+		},
+	},
+	{
+		Type:    HdfsJournalNodeClusterType,
+		Version: "v3.3.6",
+		Resource: ResourceConfig{
+			Replicas: 3,
 		},
 	},
 }
