@@ -64,7 +64,7 @@ func GetRefClusterInfo(cluster *ninev1alpha1.NineCluster, clusterType ninev1alph
 			return &v
 		}
 	}
-	return nil
+	return GetDefaultRefClusterInfo(clusterType)
 }
 
 func GetDefaultRefClusterInfo(clusterType ninev1alpha1.ClusterType) *ninev1alpha1.ClusterInfo {

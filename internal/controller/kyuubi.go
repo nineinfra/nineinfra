@@ -10,7 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"strconv"
 	"strings"
 
 	kov1alpha1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
@@ -19,12 +18,105 @@ import (
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 )
 
-func (r *NineClusterReconciler) constructKyuubiConf() map[string]string {
-	return nil
+func (r *NineClusterReconciler) getKyuubiReplicas(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) int32 {
+	var replicas = kyuubi.Resource.Replicas
+	if IsKyuubiNeedHA(cluster) {
+		replicas = 2
+	} else {
+		if replicas == 0 {
+			replicas = 1
+		}
+	}
+	return replicas
 }
 
-func (r *NineClusterReconciler) constructSparkConf() map[string]string {
-	return nil
+func (r *NineClusterReconciler) constructMetastoreConf(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (map[string]string, error) {
+	metastoreExposedInfo, err := r.getMetastoreExposedInfo(ctx, cluster)
+	if err != nil {
+		LogError(ctx, err, "get metastore exposed info failed")
+		return nil, err
+	}
+
+	hiveSite := r.constructHiveSite(ctx, cluster)
+	hiveSite["hive.metastore.uris"] = fmt.Sprintf("thrift://%s.%s.svc.%s:%d", metastoreExposedInfo.ServiceName, cluster.Namespace, GetClusterDomain(cluster, ninev1alpha1.MetaStoreClusterType), metastoreExposedInfo.ServicePort.Port)
+
+	return hiveSite, nil
+}
+
+func (r *NineClusterReconciler) constructKyuubiConf(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (map[string]string, error) {
+	authConfig := r.getAuthConfig(kyuubi)
+	err := r.configJdbcAuth(ctx, cluster, kyuubi, authConfig)
+	if err != nil {
+		LogError(ctx, err, "config kyuubi auth failed")
+		return nil, err
+	}
+
+	var kyuubiConf map[string]string
+	if authConfig.AuthType == ninev1alpha1.ClusterAuthTypeJDBC {
+		kyuubiConf = map[string]string{
+			"kyuubi.kubernetes.namespace":             cluster.Namespace,
+			"kyuubi.authentication":                   "JDBC",
+			"kyuubi.authentication.jdbc.driver.class": "org.postgresql.Driver",
+			"kyuubi.authentication.jdbc.url":          r.BuildPGJdbcWithCluster(cluster, "", "", DefaultKyuubiAuthDatabase),
+			"kyuubi.authentication.jdbc.user":         DefaultKyuubiAuthUserName,
+			"kyuubi.authentication.jdbc.password":     DefaultKyuubiAuthPassword,
+			"kyuubi.authentication.jdbc.query":        `SELECT 1 FROM users WHERE username=${user} AND passwd=MD5(CONCAT('nineinfra',${password}))`,
+		}
+	} else {
+		kyuubiConf = map[string]string{
+			"kyuubi.kubernetes.namespace": cluster.Namespace,
+		}
+	}
+
+	if IsKyuubiNeedHA(cluster) {
+		zkIpAndPorts, err := r.getZookeeperExposedInfo(ctx, cluster)
+		if err != nil {
+			LogError(ctx, err, "get zookeeper exposed info failed")
+			return nil, err
+		}
+		kyuubiConf["kyuubi.ha.namespace"] = DefaultKyuubiZKNamespace
+		kyuubiConf["kyuubi.ha.client.class"] = "org.apache.kyuubi.ha.client.zookeeper.ZookeeperDiscoveryClient"
+
+		kyuubiConf["kyuubi.ha.addresses"] = strings.Join(zkIpAndPorts, ",")
+		//kyuubiConf["kyuubi.frontend.bind.host"] = os.Getenv("POD_IP")
+	}
+
+	for k, v := range kyuubi.Configs.Conf {
+		kyuubiConf[k] = v
+	}
+
+	return kyuubiConf, nil
+}
+
+func (r *NineClusterReconciler) constructSparkConf(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (map[string]string, error) {
+	minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
+	if err != nil {
+		LogError(ctx, err, "get minio exposed info failed")
+		return nil, err
+	}
+	spark := GetRefClusterInfo(cluster, ninev1alpha1.SparkClusterType)
+
+	sparkConf := map[string]string{
+		"spark.hadoop.fs.s3a.access.key":             minioExposedInfo.AccessKey,
+		"spark.hadoop.fs.s3a.secret.key":             minioExposedInfo.SecretKey,
+		"spark.hadoop.fs.s3a.path.style.access":      "true",
+		"spark.hadoop.fs.s3a.connection.ssl.enabled": "false",
+		"spark.hadoop.fs.s3a.endpoint":               minioFullEndpoint(minioExposedInfo.Endpoint, false),
+	}
+
+	for k, v := range spark.Configs.Conf {
+		sparkConf[k] = v
+	}
+	//Currently,rss not supported,so one shuffle disk should be guaranteed
+	if _, ok := sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit"]; !ok {
+		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.claimName"] = "OnDemand"
+		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.storageClass"] = GetStorageClassName(&kyuubi)
+		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit"] = DefaultShuffleDiskSize
+		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.path"] = DefaultShuffleDiskMountPath
+		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.readOnly"] = "false"
+	}
+
+	return sparkConf, nil
 }
 
 func (r *NineClusterReconciler) getAuthConfig(kyuubi ninev1alpha1.ClusterInfo) ninev1alpha1.AuthConfig {
@@ -66,139 +158,88 @@ func (r *NineClusterReconciler) configJdbcAuth(ctx context.Context, cluster *nin
 	return nil
 }
 
-func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (*kov1alpha1.KyuubiCluster, error) {
-	minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
+func (r *NineClusterReconciler) constructKyuubiClusterRefs(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) ([]kov1alpha1.ClusterRef, error) {
+	metastoreConf, err := r.constructMetastoreConf(ctx, cluster, kyuubi)
 	if err != nil {
-		LogError(ctx, err, "get minio exposed info failed")
-		return nil, err
-	}
-	metastoreExposedInfo, err := r.getMetastoreExposedInfo(ctx, cluster)
-	if err != nil {
-		LogError(ctx, err, "get metastore exposed info failed")
-		return nil, err
-	}
-	authConfig := r.getAuthConfig(kyuubi)
-	err = r.configJdbcAuth(ctx, cluster, kyuubi, authConfig)
-	if err != nil {
-		LogError(ctx, err, "config kyuubi auth failed")
 		return nil, err
 	}
 
-	var kyuubiConf map[string]string
-	if authConfig.AuthType == ninev1alpha1.ClusterAuthTypeJDBC {
-		kyuubiConf = map[string]string{
-			"kyuubi.kubernetes.namespace":             cluster.Namespace,
-			"kyuubi.authentication":                   "JDBC",
-			"kyuubi.authentication.jdbc.driver.class": "org.postgresql.Driver",
-			"kyuubi.authentication.jdbc.url":          r.BuildPGJdbcWithCluster(cluster, "", "", DefaultKyuubiAuthDatabase),
-			"kyuubi.authentication.jdbc.user":         DefaultKyuubiAuthUserName,
-			"kyuubi.authentication.jdbc.password":     DefaultKyuubiAuthPassword,
-			"kyuubi.authentication.jdbc.query":        `SELECT 1 FROM users WHERE username=${user} AND passwd=MD5(CONCAT('nineinfra',${password}))`,
-		}
-	} else {
-		kyuubiConf = map[string]string{
-			"kyuubi.kubernetes.namespace": cluster.Namespace,
-		}
+	clusterRefs := []kov1alpha1.ClusterRef{
+		{
+			Name: "metastore",
+			Type: "metastore",
+			Metastore: kov1alpha1.MetastoreCluster{
+				HiveSite: metastoreConf,
+			},
+		},
 	}
-
-	var replicas int32 = kyuubi.Resource.Replicas
-	if IsKyuubiNeedHA(cluster) {
-		zkIpAndPorts, err := r.getZookeeperExposedInfo(ctx, cluster)
+	var sparkConf map[string]string
+	switch cluster.Spec.Type {
+	case ninev1alpha1.NineClusterTypeBatch:
+		sparkConf, err = r.constructSparkConf(ctx, cluster, kyuubi)
 		if err != nil {
-			LogError(ctx, err, "get zookeeper exposed info failed")
 			return nil, err
 		}
-		kyuubiConf["kyuubi.ha.namespace"] = DefaultKyuubiZKNamespace
-		kyuubiConf["kyuubi.ha.client.class"] = "org.apache.kyuubi.ha.client.zookeeper.ZookeeperDiscoveryClient"
-
-		kyuubiConf["kyuubi.ha.addresses"] = strings.Join(zkIpAndPorts, ",")
-		//kyuubiConf["kyuubi.frontend.bind.host"] = os.Getenv("POD_IP")
-		replicas = 2
-	} else {
-		if replicas == 0 {
-			replicas = 1
-		}
+		LogInfo(ctx, fmt.Sprintf("sparkConf:%v\n", sparkConf))
+		spark := GetRefClusterInfo(cluster, ninev1alpha1.SparkClusterType)
+		clusterRefs = append(clusterRefs, kov1alpha1.ClusterRef{
+			Name: "spark",
+			Type: "spark",
+			Spark: kov1alpha1.SparkCluster{
+				SparkMaster: "k8s",
+				SparkImage: kov1alpha1.ImageConfig{
+					Repository: spark.Configs.Image.Repository,
+					Tag:        spark.Configs.Image.Tag,
+					PullPolicy: spark.Configs.Image.PullPolicy,
+				},
+				SparkNamespace: cluster.Namespace,
+				SparkDefaults:  sparkConf,
+			},
+		})
+	case ninev1alpha1.NineClusterTypeStream:
+		//Todo support flink
 	}
 
-	for k, v := range kyuubi.Configs.Conf {
-		kyuubiConf[k] = v
-	}
-	spark := GetRefClusterInfo(cluster, kyuubi.ClusterRefs[0])
-	if spark == nil {
-		spark = GetDefaultRefClusterInfo(kyuubi.ClusterRefs[0])
-	}
-
-	sparkConf := map[string]string{
-		"spark.hadoop.fs.s3a.access.key":             minioExposedInfo.AccessKey,
-		"spark.hadoop.fs.s3a.secret.key":             minioExposedInfo.SecretKey,
-		"spark.hadoop.fs.s3a.path.style.access":      "true",
-		"spark.hadoop.fs.s3a.connection.ssl.enabled": "false",
-		"spark.hadoop.fs.s3a.endpoint":               minioFullEndpoint(minioExposedInfo.Endpoint, false),
+	switch GetClusterStorage(cluster) {
+	case ninev1alpha1.NineClusterStorageHdfs:
+		clusterRefs = append(clusterRefs, kov1alpha1.ClusterRef{
+			Name: "hdfs",
+			Type: "hdfs",
+			Hdfs: kov1alpha1.HdfsCluster{
+				CoreSite: r.constructCoreSite(ctx, cluster),
+				HdfsSite: r.constructHdfsSite(ctx, cluster),
+			},
+		})
 	}
 
-	for k, v := range spark.Configs.Conf {
-		sparkConf[k] = v
-	}
-	//Currently,rss not supported,so one shuffle disk should be guaranteed
-	if _, ok := sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit"]; !ok {
-		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.claimName"] = "OnDemand"
-		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.storageClass"] = GetStorageClassName(&kyuubi)
-		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.options.sizeLimit"] = DefaultShuffleDiskSize
-		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.path"] = DefaultShuffleDiskMountPath
-		sparkConf["spark.kubernetes.executor.volumes.persistentVolumeClaim.spark-local-dir-1.mount.readOnly"] = "false"
+	return clusterRefs, nil
+}
+
+func (r *NineClusterReconciler) constructKyuubiCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (*kov1alpha1.KyuubiCluster, error) {
+	kyuubiConf, err := r.constructKyuubiConf(ctx, cluster, kyuubi)
+	if err != nil {
+		return nil, err
 	}
 
-	LogInfo(ctx, fmt.Sprintf("sparkConf:%v\n", sparkConf))
+	clusterRefs, err := r.constructKyuubiClusterRefs(ctx, cluster, kyuubi)
+	if err != nil {
+		return nil, err
+	}
 	kyuubiDesired := &kov1alpha1.KyuubiCluster{
 		ObjectMeta: NineObjectMeta(cluster),
 		//Todo,here should be a template instead of hardcoding?
 		Spec: kov1alpha1.KyuubiClusterSpec{
 			KyuubiVersion: kyuubi.Version,
 			KyuubiResource: kov1alpha1.ResourceConfig{
-				Replicas: replicas,
+				Replicas: r.getKyuubiReplicas(ctx, cluster, kyuubi),
 			},
 			KyuubiImage: kov1alpha1.ImageConfig{
 				Repository: kyuubi.Configs.Image.Repository,
 				Tag:        kyuubi.Configs.Image.Tag,
 				PullPolicy: kyuubi.Configs.Image.PullPolicy,
 			},
-			KyuubiConf: kyuubiConf,
-			ClusterRefs: []kov1alpha1.ClusterRef{
-				{
-					Name: "spark",
-					Type: "spark",
-					Spark: kov1alpha1.SparkCluster{
-						SparkMaster: "k8s",
-						SparkImage: kov1alpha1.ImageConfig{
-							Repository: spark.Configs.Image.Repository,
-							Tag:        spark.Configs.Image.Tag,
-							PullPolicy: spark.Configs.Image.PullPolicy,
-						},
-						SparkNamespace: cluster.Namespace,
-						SparkDefaults:  sparkConf,
-					},
-				},
-				{
-					Name: "metastore",
-					Type: "metastore",
-					Metastore: kov1alpha1.MetastoreCluster{
-						HiveSite: map[string]string{
-							"hive.metastore.uris":          "thrift://" + metastoreExposedInfo.ServiceName + "." + cluster.Namespace + ".svc:" + strconv.Itoa(int(metastoreExposedInfo.ServicePort.Port)),
-							"hive.metastore.warehouse.dir": "s3a:/" + ninev1alpha1.DataHouseDir,
-						},
-					},
-				},
-				{
-					Name: "hdfs",
-					Type: "hdfs",
-					Hdfs: kov1alpha1.HdfsCluster{
-						CoreSite: map[string]string{},
-						HdfsSite: map[string]string{
-							"dfs.client.block.write.retries": "3",
-						},
-					},
-				},
-			},
+			KyuubiConf:  kyuubiConf,
+			ClusterRefs: clusterRefs,
 		},
 	}
 
