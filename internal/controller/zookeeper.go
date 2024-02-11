@@ -11,12 +11,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
+)
+
+const (
+	DefaultZKReplicas = 3
 )
 
 func zkResourceName(cluster *ninev1alpha1.NineCluster) string {
@@ -36,51 +37,39 @@ func constructZookeeperPodLabel(name string) map[string]string {
 
 func (r *NineClusterReconciler) getZookeeperExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) ([]string, error) {
 	condition := make(chan struct{})
-	svc := &corev1.Service{}
-	go func(svc *corev1.Service) {
+	endpoints := &corev1.Endpoints{}
+	go func(ep *corev1.Endpoints) {
 		for {
-			LogInfoInterval(ctx, 5, "Try to get zookeeper service...")
-			if err := r.Get(ctx, types.NamespacedName{Name: zkSvcName(cluster), Namespace: cluster.Namespace}, svc); err != nil && errors.IsNotFound(err) {
+			LogInfoInterval(ctx, 5, "Check zookeeper ready...")
+			_, result, e := r.CheckEndpointsReady(cluster, zkSvcName(cluster), DefaultZKReplicas)
+			if !result {
 				time.Sleep(time.Second)
 				continue
-			} else if err != nil {
-				LogError(ctx, err, "get zookeeper service failed")
 			}
+			_, result = r.CheckPodsReady(cluster, constructZookeeperPodLabel(NineResourceName(cluster)), DefaultZKReplicas)
+			if !result {
+				time.Sleep(time.Second)
+				continue
+			}
+			e.DeepCopyInto(ep)
 			close(condition)
 			break
 		}
-	}(svc)
+	}(endpoints)
 
 	<-condition
-	endpoints := &corev1.Endpoints{}
-	if err := r.Get(ctx, types.NamespacedName{Name: zkSvcName(cluster), Namespace: cluster.Namespace}, endpoints); err != nil {
-		LogError(ctx, err, "get zookeeper endpoints failed")
-		return nil, err
-	}
-
 	var zkClientPort int32 = 0
 	for _, v := range endpoints.Subsets[0].Ports {
 		if v.Name == DefaultZKClientPortName {
 			zkClientPort = v.Port
 		}
 	}
-
-	zkPods := &corev1.PodList{}
-	labelSelector := labels.SelectorFromSet(constructZookeeperPodLabel(NineResourceName(cluster)))
-	listOps := &client.ListOptions{
-		Namespace:     cluster.Namespace,
-		LabelSelector: labelSelector,
-	}
-	if err := r.Client.List(context.TODO(), zkPods, listOps); err != nil {
-		LogError(ctx, err, "get zookeeper pods failed")
-		return nil, err
-	}
 	zkIpAndPorts := make([]string, 0)
-	for _, pod := range zkPods.Items {
-		zkIpAndPorts = append(zkIpAndPorts, fmt.Sprintf("%s:%d", pod.Status.PodIP, zkClientPort))
+	for _, ip := range endpoints.Subsets[0].Addresses {
+		zkIpAndPorts = append(zkIpAndPorts, fmt.Sprintf("%s:%d", ip.IP, zkClientPort))
 	}
 
-	LogInfo(ctx, "Get zookeeper exposed info successfully!")
+	LogInfo(ctx, fmt.Sprintf("Get zookeeper exposed info successfully,zkIpAndPorts:%v", zkIpAndPorts))
 	return zkIpAndPorts, nil
 }
 

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"net/url"
 	"strings"
 	"time"
@@ -23,9 +22,10 @@ import (
 )
 
 const (
-	PGInitDBName     = "hive"
-	PGInitDBUserName = "hive"
-	PGInitDBPassword = "hive"
+	PGInitDBName      = "hive"
+	PGInitDBUserName  = "hive"
+	PGInitDBPassword  = "hive"
+	DefaultPgReplicas = 3
 )
 
 func getPGSuperUserNameAndPassword(pg ninev1alpha1.ClusterInfo) (string, string) {
@@ -51,6 +51,12 @@ func pgRWSvcNameInCluster(cluster *ninev1alpha1.NineCluster, svcName string) str
 
 func pgJDBCInitDBConnetionURL(cluster *ninev1alpha1.NineCluster) string {
 	return "jdbc:postgresql://" + pgRWSvcName(cluster) + ":5432/" + PGInitDBName
+}
+
+func constructPgPodLabel(name string) map[string]string {
+	return map[string]string{
+		"cnpg.io/cluster": name,
+	}
 }
 
 func (r *NineClusterReconciler) BuildPGUri(username string, password string, host string, dbname string) string {
@@ -98,9 +104,14 @@ func (r *NineClusterReconciler) getPGRWSvcNameWithSync(ctx context.Context, clus
 	dbSvc := &corev1.Service{}
 	go func(svc *corev1.Service) {
 		for {
-			//Todo, dead loop here can be broken manually?
-			LogInfoInterval(ctx, 5, "Try to get db service...")
-			if err := r.Get(ctx, types.NamespacedName{Name: svcName, Namespace: cluster.Namespace}, svc); err != nil && errors.IsNotFound(err) {
+			LogInfoInterval(ctx, 5, "Check PG ready...")
+			_, result, _ := r.CheckEndpointsReady(cluster, svcName, 1)
+			if !result {
+				time.Sleep(time.Second)
+				continue
+			}
+			_, result = r.CheckPodsReady(cluster, constructPgPodLabel(NineResourceName(cluster, PGResourceNameSuffix)), DefaultPgReplicas)
+			if !result {
 				time.Sleep(time.Second)
 				continue
 			}
@@ -254,7 +265,7 @@ func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster 
 	PGDesired := &cnpgv1.Cluster{
 		ObjectMeta: NineObjectMeta(cluster, PGResourceNameSuffix),
 		Spec: cnpgv1.ClusterSpec{
-			Instances: 3,
+			Instances: DefaultPgReplicas,
 			StorageConfiguration: cnpgv1.StorageConfiguration{
 				StorageClass: &PGStorgeClass,
 				Size:         "10Gi",

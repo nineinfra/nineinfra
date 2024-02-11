@@ -78,7 +78,7 @@ func (r *NineClusterReconciler) constructHiveSite(ctx context.Context, cluster *
 	case ninev1alpha1.NineClusterStorageMinio:
 		hiveSite["hive.metastore.warehouse.dir"] = fmt.Sprintf("s3a:/%s", ninev1alpha1.DataHouseDir)
 	case ninev1alpha1.NineClusterStorageHdfs:
-		hiveSite["hive.metastore.warehouse.dir"] = fmt.Sprintf("hdfs://%s/%s", "nineinfra", ninev1alpha1.DataHouseDir)
+		hiveSite["hive.metastore.warehouse.dir"] = fmt.Sprintf("hdfs://%s%s", "nineinfra", ninev1alpha1.DataHouseDir)
 	}
 	return hiveSite
 }

@@ -166,3 +166,14 @@ rules:
       - patch
       - update
       - watch
+  - apiGroups:
+      - hdfs.nineinfra.tech
+    resources:
+      - "*"
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch

@@ -1,13 +1,18 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
 	"strings"
 )
@@ -239,4 +244,53 @@ func FillClustersInfo(cluster *ninev1alpha1.NineCluster) error {
 	}
 
 	return nil
+}
+
+func (r *NineClusterReconciler) CheckEndpointsReady(cluster *ninev1alpha1.NineCluster, name string, needReplicas int) (error, bool, *corev1.Endpoints) {
+	endpoints := &corev1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: cluster.Namespace,
+		},
+	}
+	existsEndpoints := &corev1.Endpoints{}
+	err := r.Get(context.TODO(), types.NamespacedName{Name: endpoints.Name, Namespace: endpoints.Namespace}, existsEndpoints)
+	if err != nil && k8serrors.IsNotFound(err) {
+		return nil, false, existsEndpoints
+	} else if err != nil {
+		return err, false, existsEndpoints
+	}
+	if len(existsEndpoints.Subsets) == 0 ||
+		(len(existsEndpoints.Subsets) > 0 &&
+			len(existsEndpoints.Subsets[0].Addresses) < int(needReplicas)) {
+		return nil, false, existsEndpoints
+	}
+	return nil, true, existsEndpoints
+}
+
+func (r *NineClusterReconciler) CheckPodsReady(cluster *ninev1alpha1.NineCluster, podLabels map[string]string, needReplicas int) (error, bool) {
+	podList := &corev1.PodList{}
+	labelSelector := labels.SelectorFromSet(podLabels)
+	listOps := &client.ListOptions{
+		Namespace:     cluster.Namespace,
+		LabelSelector: labelSelector,
+	}
+	if err := r.Client.List(context.TODO(), podList, listOps); err != nil {
+		return err, false
+	}
+	if len(podList.Items) < needReplicas {
+		return nil, false
+	}
+	iReadys := 0
+	for _, pod := range podList.Items {
+		for _, c := range pod.Status.Conditions {
+			if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+				iReadys += 1
+			}
+		}
+	}
+	if iReadys < needReplicas {
+		return nil, false
+	}
+	return nil, true
 }

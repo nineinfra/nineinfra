@@ -20,11 +20,15 @@ import (
 	"time"
 )
 
+const (
+	DfsReplicationConfKey = "dfs.replication"
+	FSDefaultFSConfKey    = "fs.defaultFS"
+	DFSNameSpacesConfKey  = "dfs.nameservices"
+)
+
 var (
 	DefaultDfsReplication   = 3
 	DefaultDataNodeReplicas = 3
-	DfsReplicationConfKey   = "dfs.replication"
-	FSDefaultFSConfKey      = "fs.defaultFS"
 	// DefaultNameService is the default name service for hdfs
 	DefaultNameService     = "nineinfra"
 	DefaultNameNodeRpcPort = 8020
@@ -156,13 +160,13 @@ func (r *NineClusterReconciler) constructHdfsSite(ctx context.Context, cluster *
 	hdfsSite := make(map[string]string, 0)
 	c := r.getHdfsClusterInfo(ctx, cluster)
 	if c != nil && c.Configs.Conf != nil {
-		if value, ok := c.Configs.Conf["dfs.nameservices"]; ok {
-			hdfsSite["dfs.nameservices"] = value
+		if value, ok := c.Configs.Conf[DFSNameSpacesConfKey]; ok {
+			hdfsSite[DFSNameSpacesConfKey] = value
 		}
 	}
 
-	if _, ok := hdfsSite["dfs.nameservices"]; !ok {
-		hdfsSite["dfs.nameservices"] = DefaultNameService
+	if _, ok := hdfsSite[DFSNameSpacesConfKey]; !ok {
+		hdfsSite[DFSNameSpacesConfKey] = DefaultNameService
 	}
 
 	if checkHdfsNameNodeHA(cluster) {
@@ -199,6 +203,7 @@ func (r *NineClusterReconciler) constructHdfsSite(ctx context.Context, cluster *
 				DefaultNameNodeRpcPort)
 		}
 	}
+
 	return hdfsSite
 }
 
@@ -281,7 +286,11 @@ func (r *NineClusterReconciler) constructHdfsCluster(ctx context.Context, ninecl
 					},
 					Conf: c.Configs.Conf,
 				}
-				zkCluster.Conf[clusterv1.RefClusterZKReplicasKey] = strconv.Itoa(int(c.Resource.Replicas))
+				if zkCluster.Conf == nil {
+					zkCluster.Conf = make(map[string]string, 0)
+				}
+
+				zkCluster.Conf[clusterv1.RefClusterZKReplicasKey] = strconv.Itoa(len(zkIpAndPorts))
 				zkCluster.Conf[clusterv1.RefClusterZKEndpointsKey] = strings.Join(zkIpAndPorts, ",")
 			}
 		}
