@@ -89,20 +89,25 @@ func (r *NineClusterReconciler) constructKyuubiConf(ctx context.Context, cluster
 }
 
 func (r *NineClusterReconciler) constructSparkConf(ctx context.Context, cluster *ninev1alpha1.NineCluster, kyuubi ninev1alpha1.ClusterInfo) (map[string]string, error) {
-	minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
-	if err != nil {
-		LogError(ctx, err, "get minio exposed info failed")
-		return nil, err
+	sparkConf := make(map[string]string, 0)
+	switch GetClusterStorage(cluster) {
+	case ninev1alpha1.NineClusterStorageMinio:
+		minioExposedInfo, err := r.getMinioExposedInfo(ctx, cluster)
+		if err != nil {
+			LogError(ctx, err, "get minio exposed info failed")
+			return nil, err
+		}
+		sparkConf = map[string]string{
+			"spark.hadoop.fs.s3a.access.key":             minioExposedInfo.AccessKey,
+			"spark.hadoop.fs.s3a.secret.key":             minioExposedInfo.SecretKey,
+			"spark.hadoop.fs.s3a.path.style.access":      "true",
+			"spark.hadoop.fs.s3a.connection.ssl.enabled": "false",
+			"spark.hadoop.fs.s3a.endpoint":               minioFullEndpoint(minioExposedInfo.Endpoint, false),
+		}
+	case ninev1alpha1.NineClusterStorageHdfs:
+		//Todo
 	}
 	spark := GetRefClusterInfo(cluster, ninev1alpha1.SparkClusterType)
-
-	sparkConf := map[string]string{
-		"spark.hadoop.fs.s3a.access.key":             minioExposedInfo.AccessKey,
-		"spark.hadoop.fs.s3a.secret.key":             minioExposedInfo.SecretKey,
-		"spark.hadoop.fs.s3a.path.style.access":      "true",
-		"spark.hadoop.fs.s3a.connection.ssl.enabled": "false",
-		"spark.hadoop.fs.s3a.endpoint":               minioFullEndpoint(minioExposedInfo.Endpoint, false),
-	}
 
 	for k, v := range spark.Configs.Conf {
 		sparkConf[k] = v

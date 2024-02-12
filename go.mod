@@ -15,6 +15,7 @@ require (
 	github.com/nineinfra/zookeeper-operator v0.6.0
 	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.29.0
+	github.com/pkg/errors v0.9.1
 	github.com/selectdb/doris-operator v0.0.0-20231229091107-c68dee6644fb
 	k8s.io/api v0.28.3
 	k8s.io/apimachinery v0.28.3
@@ -69,7 +70,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
 	github.com/prometheus/client_golang v1.17.0 // indirect
 	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16 // indirect
