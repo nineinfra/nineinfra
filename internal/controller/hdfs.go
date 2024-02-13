@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	hdfsv2 "github.com/colinmarc/hdfs/v2"
 	"github.com/go-logr/logr"
 	clusterv1 "github.com/nineinfra/hdfs-operator/api/v1"
 	clusterversioned "github.com/nineinfra/hdfs-operator/client/clientset/versioned"
@@ -14,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"strconv"
 	"strings"
@@ -55,6 +57,62 @@ func checkHdfsNameNodeHA(cluster *ninev1alpha1.NineCluster) bool {
 		}
 	}
 	return false
+}
+
+func (r *NineClusterReconciler) createHdfsDataDir(ctx context.Context, hdfsInfo *ninev1alpha1.HdfsExposedInfo, dir string, mode os.FileMode) error {
+	hcOptions := hdfsv2.ClientOptions{
+		User: "root",
+	}
+	hcOptions.Addresses = make([]string, 0)
+	if hdfsInfo.HdfsSite != nil {
+		if _, ok := hdfsInfo.HdfsSite[DFSNameSpacesConfKey]; ok {
+			if _, ok := hdfsInfo.HdfsSite[fmt.Sprintf("dfs.ha.namenodes.%s", hdfsInfo.HdfsSite[DFSNameSpacesConfKey])]; ok {
+				nameNodes := hdfsInfo.HdfsSite[fmt.Sprintf("dfs.ha.namenodes.%s", hdfsInfo.HdfsSite[DFSNameSpacesConfKey])]
+				nameNodeList := strings.Split(nameNodes, ",")
+				for _, v := range nameNodeList {
+					hcOptions.Addresses = append(hcOptions.Addresses, hdfsInfo.HdfsSite[fmt.Sprintf("dfs.namenode.rpc-address.%s.%s", hdfsInfo.HdfsSite[DFSNameSpacesConfKey], v)])
+				}
+			} else {
+				hcOptions.Addresses = append(hcOptions.Addresses, hdfsInfo.HdfsSite[fmt.Sprintf("dfs.namenode.rpc-address.%s", hdfsInfo.HdfsSite[DFSNameSpacesConfKey])])
+			}
+		}
+	}
+	hc, err := hdfsv2.NewClient(hcOptions)
+	if err != nil {
+		return err
+	}
+	condition := make(chan struct{})
+	go func() {
+		for {
+			LogInfoInterval(ctx, 5, fmt.Sprintf("Check hdfs directory %s exists...", dir))
+			stat, err := hc.Stat(dir)
+			if err != nil && !strings.Contains(err.Error(), os.ErrNotExist.Error()) {
+				LogInfo(ctx, fmt.Sprintf("Stat directory:%s,err:%s", dir, err.Error()))
+				time.Sleep(time.Second)
+				continue
+			}
+			if err != nil && strings.Contains(err.Error(), os.ErrNotExist.Error()) {
+				LogInfoInterval(ctx, 5, fmt.Sprintf("Try to create hdfs directory %s...", dir))
+				err = hc.MkdirAll(dir, mode)
+				if err != nil {
+					LogInfo(ctx, fmt.Sprintf("MkdirAll dir:%s,err:%s", dir, err.Error()))
+					time.Sleep(time.Second)
+					continue
+				}
+			}
+			if stat != nil && !stat.IsDir() {
+				LogError(ctx, githuberrors.New("file already exists"), fmt.Sprintf("A file with a same name with the directory %s exist,you should move the file first", dir))
+				time.Sleep(5 * time.Second)
+				continue
+			}
+			LogInfo(ctx, "Reconcile hdfs directory successfully!")
+			close(condition)
+			break
+		}
+	}()
+	<-condition
+
+	return nil
 }
 
 func (r *NineClusterReconciler) getHdfsExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (ninev1alpha1.HdfsExposedInfo, error) {

@@ -36,7 +36,11 @@ func (r *NineClusterReconciler) constructMetastoreClusterRefs(ctx context.Contex
 
 	switch GetClusterStorage(cluster) {
 	case ninev1alpha1.NineClusterStorageHdfs:
-		_, err := r.getHdfsExposedInfo(ctx, cluster)
+		hdfsExposedInfo, err := r.getHdfsExposedInfo(ctx, cluster)
+		if err != nil {
+			return nil, err
+		}
+		err = r.createHdfsDataDir(ctx, &hdfsExposedInfo, ninev1alpha1.DataHouseDir, 0777)
 		if err != nil {
 			return nil, err
 		}

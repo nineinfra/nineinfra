@@ -5,6 +5,7 @@ go 1.21.1
 require (
 	github.com/cloudnative-pg/client v0.0.0-00010101000000-000000000000
 	github.com/cloudnative-pg/cloudnative-pg v1.21.1
+	github.com/colinmarc/hdfs/v2 v2.4.0
 	github.com/go-logr/logr v1.3.0
 	github.com/minio/directpv/apis/directpv.min.io/v1beta1 v0.0.0-00010101000000-000000000000
 	github.com/minio/minio-go/v7 v7.0.63
@@ -49,7 +50,14 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1 // indirect
 	github.com/google/uuid v1.4.0 // indirect
+	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
+	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
+	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
+	github.com/jcmturner/gofork v1.7.6 // indirect
+	github.com/jcmturner/goidentity/v6 v6.0.1 // indirect
+	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
+	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
