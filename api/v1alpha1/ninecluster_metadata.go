@@ -15,7 +15,7 @@ var NineDatahouseClusterset = []ClusterInfo{
 		Configs: ClusterConfig{
 			Image: ImageConfig{
 				Repository: "nineinfra/kyuubi",
-				Tag:        "v1.8.0-minio",
+				Tag:        "v1.8.0",
 				PullPolicy: "IfNotPresent",
 			},
 			Conf: map[string]string{
@@ -60,7 +60,7 @@ var NineDatahouseFullClusterset = []ClusterInfo{
 		Configs: ClusterConfig{
 			Image: ImageConfig{
 				Repository: "nineinfra/kyuubi",
-				Tag:        "v1.8.0-minio",
+				Tag:        "v1.8.0",
 				PullPolicy: "IfNotPresent",
 			},
 			Conf: map[string]string{
@@ -110,7 +110,7 @@ var NineDatahouseFullClusterset = []ClusterInfo{
 		Configs: ClusterConfig{
 			Image: ImageConfig{
 				Repository: "nineinfra/spark",
-				Tag:        "v3.2.4-minio",
+				Tag:        "v3.2.4",
 				PullPolicy: "IfNotPresent",
 			},
 		},
