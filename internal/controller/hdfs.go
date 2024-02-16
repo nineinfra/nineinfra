@@ -298,12 +298,16 @@ func (r *NineClusterReconciler) constructHdfsCluster(ctx context.Context, ninecl
 					},
 					Conf: c.Configs.Conf,
 				}
-				if c.Type == ninev1alpha1.HdfsDataNodeClusterType && c.Resource.Replicas == 0 {
-					dpns, err := r.getDirectPVNodesCount(ctx)
-					if err != nil {
-						tempCluster.Resource.Replicas = int32(DefaultDataNodeReplicas)
+				if c.Type == ninev1alpha1.HdfsDataNodeClusterType {
+					if c.Resource.Replicas == 0 {
+						dpns, err := r.getDirectPVNodesCount(ctx)
+						if err != nil {
+							tempCluster.Resource.Replicas = int32(DefaultDataNodeReplicas)
+						} else {
+							tempCluster.Resource.Replicas = dpns
+						}
 					} else {
-						tempCluster.Resource.Replicas = dpns
+						tempCluster.Resource.Replicas = c.Resource.Replicas
 					}
 					q, _ := CapacityPerVolume(strconv.Itoa(GiB2Bytes(ninecluster.Spec.DataVolume*dfsReplication)), tempCluster.Resource.Replicas*int32(GetDiskNum(cluster)))
 					tempCluster.Resource.ResourceRequirements = corev1.ResourceRequirements{

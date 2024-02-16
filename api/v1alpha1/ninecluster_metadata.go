@@ -204,9 +204,6 @@ var NineDatahouseFullClusterset = []ClusterInfo{
 	{
 		Type:    HdfsDataNodeClusterType,
 		Version: "v3.3.6",
-		Resource: ResourceConfig{
-			Replicas: 3,
-		},
 	},
 	{
 		Type:    HdfsJournalNodeClusterType,
