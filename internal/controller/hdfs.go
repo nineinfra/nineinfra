@@ -265,7 +265,7 @@ func (r *NineClusterReconciler) constructHdfsSite(ctx context.Context, cluster *
 	return hdfsSite
 }
 
-func (r *NineClusterReconciler) constructHdfsCluster(ctx context.Context, ninecluster *ninev1alpha1.NineCluster, cluster ninev1alpha1.ClusterInfo) (*clusterv1.HdfsCluster, error) {
+func (r *NineClusterReconciler) constructHdfsCluster(ctx context.Context, ninecluster *ninev1alpha1.NineCluster, cluster ninev1alpha1.ClusterInfo, logger logr.Logger) (*clusterv1.HdfsCluster, error) {
 	clusterConf := map[string]string{}
 	for k, v := range cluster.Configs.Conf {
 		clusterConf[k] = v
@@ -310,9 +310,11 @@ func (r *NineClusterReconciler) constructHdfsCluster(ctx context.Context, ninecl
 						tempCluster.Resource.Replicas = c.Resource.Replicas
 					}
 					q, _ := CapacityPerVolume(strconv.Itoa(GiB2Bytes(ninecluster.Spec.DataVolume*dfsReplication)), tempCluster.Resource.Replicas*int32(GetDiskNum(cluster)))
+					logger.Info(fmt.Sprintf("Calc request storage,datavolume:%d,dfsReplication:%d,disknum:%d,replicas:%d", ninecluster.Spec.DataVolume, dfsReplication, GetDiskNum(cluster), tempCluster.Resource.Replicas))
 					tempCluster.Resource.ResourceRequirements = corev1.ResourceRequirements{
 						Requests: RequestStorage(*q),
 					}
+					tempCluster.Resource.Disks = int32(GetDiskNum(cluster))
 				}
 				clusters = append(clusters, tempCluster)
 			}
@@ -391,7 +393,7 @@ func (r *NineClusterReconciler) constructHdfsCluster(ctx context.Context, ninecl
 }
 
 func (r *NineClusterReconciler) reconcileHdfsCluster(ctx context.Context, ninecluster *ninev1alpha1.NineCluster, cluster ninev1alpha1.ClusterInfo, logger logr.Logger) error {
-	desiredCluster, err := r.constructHdfsCluster(ctx, ninecluster, cluster)
+	desiredCluster, err := r.constructHdfsCluster(ctx, ninecluster, cluster, logger)
 	if err != nil && errors.IsNotFound(err) {
 		logger.Info("Wait for other resource to construct HdfsCluster...")
 		return nil

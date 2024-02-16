@@ -8,12 +8,38 @@ import (
 	moversioned "github.com/nineinfra/metastore-operator/client/clientset/versioned"
 	moscheme "github.com/nineinfra/metastore-operator/client/clientset/versioned/scheme"
 	ninev1alpha1 "github.com/nineinfra/nineinfra/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"time"
 )
+
+var (
+	MetastoreReplicas int32 = 1
+)
+
+func metastoreResourceName(cluster *ninev1alpha1.NineCluster) string {
+	return NineResourceName(cluster, MetastoreResourceNameSuffix)
+}
+
+func metastoreSvcName(cluster *ninev1alpha1.NineCluster) string {
+	return metastoreResourceName(cluster)
+}
+
+func constructMetastorePodLabel(name string) map[string]string {
+	return map[string]string{
+		"cluster": name,
+		"app":     DefaultMetastoreClusterSign,
+	}
+}
+
+func (r *NineClusterReconciler) initMetastore(metastore ninev1alpha1.ClusterInfo) {
+	if metastore.Resource.Replicas != 0 {
+		MetastoreReplicas = metastore.Resource.Replicas
+	}
+}
 
 func (r *NineClusterReconciler) constructMetastoreClusterRefs(ctx context.Context, cluster *ninev1alpha1.NineCluster) ([]mov1alpha1.ClusterRef, error) {
 	dbc, err := r.getDatabaseExposedInfo(ctx, cluster)
@@ -88,47 +114,33 @@ func (r *NineClusterReconciler) constructHiveSite(ctx context.Context, cluster *
 }
 
 func (r *NineClusterReconciler) getMetastoreExposedInfo(ctx context.Context, cluster *ninev1alpha1.NineCluster) (mov1alpha1.ExposedInfo, error) {
-	me := mov1alpha1.ExposedInfo{}
-	config, err := GetK8sClientConfig()
-	if err != nil {
-		return me, err
-	}
-
-	mclient, err := moversioned.NewForConfig(config)
-	if err != nil {
-		return me, err
-	}
 	condition := make(chan struct{})
-
-	mc := &mov1alpha1.MetastoreCluster{}
-	go func(metastorecluster *mov1alpha1.MetastoreCluster) {
+	endpoints := &corev1.Endpoints{}
+	go func(ep *corev1.Endpoints) {
 		for {
-			LogInfoInterval(ctx, 5, "Try to get metastore cluster...")
-			mctemp, err := mclient.MetastoreV1alpha1().MetastoreClusters(cluster.Namespace).Get(context.TODO(), NineResourceName(cluster), metav1.GetOptions{})
-			if err != nil && errors.IsNotFound(err) {
-				time.Sleep(time.Second)
-				continue
-			} else if err != nil {
-				LogError(ctx, err, "get metastore cluster failed")
-			}
-			LogInfoInterval(ctx, 5, "Try to get metastore cluster status...")
-			if mctemp.Status.ExposedInfos == nil {
+			LogInfoInterval(ctx, 5, "Check metastore pod ready...")
+			_, ready := r.CheckPodsReady(cluster, constructMetastorePodLabel(NineResourceName(cluster)), int(MetastoreReplicas))
+			if !ready {
 				time.Sleep(time.Second)
 				continue
 			}
-			mctemp.DeepCopyInto(metastorecluster)
+			LogInfoInterval(ctx, 5, "Check metastore endpoints ready...")
+			_, ready, e := r.CheckEndpointsReady(cluster, metastoreSvcName(cluster), int(MetastoreReplicas))
+			if !ready {
+				time.Sleep(time.Second)
+				continue
+			}
+			e.DeepCopyInto(ep)
 			close(condition)
 			break
 		}
-	}(mc)
+	}(endpoints)
 	<-condition
 	LogInfo(ctx, "Get metastore cluster exposed info successfully!")
-	for _, v := range mc.Status.ExposedInfos {
-		if v.ExposedType == mov1alpha1.ExposedThriftHttp {
-			me = v
-			break
-		}
-	}
+
+	me := mov1alpha1.ExposedInfo{}
+	me.ServiceName = metastoreSvcName(cluster)
+	me.ServicePort.Port = endpoints.Subsets[0].Ports[0].Port
 	return me, nil
 }
 
@@ -147,7 +159,7 @@ func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, c
 		Spec: mov1alpha1.MetastoreClusterSpec{
 			MetastoreVersion: metastore.Version,
 			MetastoreResource: mov1alpha1.ResourceConfig{
-				Replicas: 1,
+				Replicas: MetastoreReplicas,
 			},
 			MetastoreImage: mov1alpha1.ImageConfig{
 				Repository: metastore.Configs.Image.Repository,
@@ -167,6 +179,7 @@ func (r *NineClusterReconciler) constructMetastoreCluster(ctx context.Context, c
 }
 
 func (r *NineClusterReconciler) reconcileMetastoreCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, metastore ninev1alpha1.ClusterInfo, logger logr.Logger) error {
+	r.initMetastore(metastore)
 	desiredMetastore, err := r.constructMetastoreCluster(ctx, cluster, metastore)
 	if err != nil && errors.IsNotFound(err) {
 		logger.Info("Wait for other resource to construct MetastoreCluster...")

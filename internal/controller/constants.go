@@ -48,3 +48,8 @@ const (
 	DefaultHdfsClusterSign = "hdfs"
 	HdfsRoleNameNode       = "namenode"
 )
+
+const (
+	MetastoreResourceNameSuffix = "-metastore"
+	DefaultMetastoreClusterSign = "metastore"
+)
