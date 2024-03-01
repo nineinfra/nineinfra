@@ -248,6 +248,7 @@ func (r *NineClusterReconciler) constructHdfsSite(ctx context.Context, cluster *
 					GetClusterDomain(cluster, ninev1alpha1.HdfsClusterType),
 					DefaultNameNodeRpcPort)
 			}
+			hdfsSite[fmt.Sprintf("dfs.client.failover.proxy.provider.%s", hdfsSite["dfs.nameservices"])] = "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider"
 		}
 	} else {
 		if _, ok := hdfsSite[fmt.Sprintf("dfs.namenode.rpc-address.%s", hdfsSite["dfs.nameservices"])]; !ok {
