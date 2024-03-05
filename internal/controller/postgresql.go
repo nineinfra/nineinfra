@@ -261,6 +261,17 @@ func (r *NineClusterReconciler) reconcilePGSuperUserSecret(ctx context.Context, 
 
 func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster *ninev1alpha1.NineCluster, pg ninev1alpha1.ClusterInfo) (*cnpgv1.Cluster, error) {
 	PGStorgeClass := GetStorageClassName(&pg)
+	pgConf := map[string]string{
+		"idle_in_transaction_session_timeout": "120000",
+		"idle_session_timeout":                "60000",
+		"tcp_keepalives_idle":                 "120",
+		"tcp_keepalives_interval":             "20",
+		"tcp_keepalives_count":                "10",
+		"max_connections":                     "300",
+	}
+	if IsPostgresqlCDC(cluster) {
+		pgConf["wal_level"] = "logical"
+	}
 	enableSupseruserAccess := true
 	PGDesired := &cnpgv1.Cluster{
 		ObjectMeta: NineObjectMeta(cluster, PGResourceNameSuffix),
@@ -271,14 +282,7 @@ func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster 
 				Size:         "10Gi",
 			},
 			PostgresConfiguration: cnpgv1.PostgresConfiguration{
-				Parameters: map[string]string{
-					"idle_in_transaction_session_timeout": "120000",
-					"idle_session_timeout":                "60000",
-					"tcp_keepalives_idle":                 "120",
-					"tcp_keepalives_interval":             "20",
-					"tcp_keepalives_count":                "10",
-					"max_connections":                     "300",
-				},
+				Parameters: pgConf,
 				PgHBA: []string{
 					"host all all 0.0.0.0/0 trust",
 				},
