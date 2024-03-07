@@ -85,7 +85,6 @@ const (
 	NineClusterFeatureStorage       = "storage"
 	NineClusterFeatureCustomStorage = "custom-storage"
 	NineClusterFeatureKyuubiHA      = "kyuubi-ha"
-	NineClusterFeaturePostgresqlCDC = "postgresql-cdc"
 )
 
 const (

@@ -269,9 +269,6 @@ func (r *NineClusterReconciler) constructPGCluster(ctx context.Context, cluster 
 		"tcp_keepalives_count":                "10",
 		"max_connections":                     "300",
 	}
-	if IsPostgresqlCDC(cluster) {
-		pgConf["wal_level"] = "logical"
-	}
 	enableSupseruserAccess := true
 	PGDesired := &cnpgv1.Cluster{
 		ObjectMeta: NineObjectMeta(cluster, PGResourceNameSuffix),

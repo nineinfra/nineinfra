@@ -150,19 +150,6 @@ func IsKyuubiNeedHA(cluster *ninev1alpha1.NineCluster) bool {
 	return false
 }
 
-func IsPostgresqlCDC(cluster *ninev1alpha1.NineCluster) bool {
-	if cluster.Spec.Features != nil {
-		if value, ok := cluster.Spec.Features[ninev1alpha1.NineClusterFeaturePostgresqlCDC]; ok {
-			ha, err := strconv.ParseBool(value)
-			if err != nil {
-				return false
-			}
-			return ha
-		}
-	}
-	return false
-}
-
 func GetDiskNum(cluster ninev1alpha1.ClusterInfo) int {
 	if cluster.Resource.Disks != 0 {
 		return int(cluster.Resource.Disks)
